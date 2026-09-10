@@ -1,165 +1,166 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Bot,
-  Send,
   Sparkles,
-  User,
-  ShieldCheck,
-  FileText,
+  Cpu,
+  Package,
+  Layers,
   HelpCircle,
-  Cpu
+  AlertCircle
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import { mockProducts, mockChatPresets } from '../../data/mockData';
+import LoadingState from '../../components/common/LoadingState';
+import ProductAIChatWidget from '../../components/ai/ProductAIChatWidget';
+import { productsApi, warrantiesApi, documentsApi, maintenanceApi, aiApi } from '../../services/api';
 import './AIAssistant.css';
 
 export default function AIAssistant() {
-  const [selectedProduct, setSelectedProduct] = useState(mockProducts[0].id);
-  const [inputMessage, setInputMessage] = useState('');
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      sender: 'ai',
-      text: `Hello! I am your OWNIT Local AI Assistant running private inference with Ollama. Select any product from your catalog and ask about warranty coverage, claim drafting, maintenance intervals, or troubleshooting!`,
-      timestamp: 'Just now'
+  const [products, setProducts] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [productData, setProductData] = useState({
+    product: null,
+    warranties: [],
+    documents: [],
+    maintenanceRecords: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [loadingProductDetails, setLoadingProductDetails] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null);
+
+  // 1. Fetch user's registered products & Ollama status
+  const fetchInitialData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [prodList, statusRes] = await Promise.all([
+        productsApi.list(),
+        aiApi.getStatus().catch(() => ({ isAvailable: false, configuredModel: 'llama3.2', provider: 'Ollama' }))
+      ]);
+      setProducts(prodList);
+      setAiStatus(statusRes);
+      if (prodList && prodList.length > 0) {
+        setSelectedProductId(prodList[0].id);
+      }
+    } catch (err) {
+      console.error('Error fetching initial products for AI Assistant:', err);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  }, []);
 
-  const handleSendMessage = (textToSend) => {
-    const text = textToSend || inputMessage;
-    if (!text.trim()) return;
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
-    const userMsg = {
-      id: Date.now(),
-      sender: 'user',
-      text: text,
-      timestamp: 'Just now'
-    };
+  // 2. When selected product changes, fetch its warranties, documents, maintenance
+  const fetchSelectedProductDetails = useCallback(async (prodId) => {
+    if (!prodId) return;
+    try {
+      setLoadingProductDetails(true);
+      const [prod, wList, dList, mList] = await Promise.all([
+        productsApi.get(prodId),
+        warrantiesApi.getByProduct(prodId),
+        documentsApi.list({ productId: prodId }),
+        maintenanceApi.listByProduct(prodId)
+      ]);
+      setProductData({
+        product: prod,
+        warranties: wList,
+        documents: dList,
+        maintenanceRecords: mList
+      });
+    } catch (err) {
+      console.error('Error fetching details for selected product:', err);
+    } finally {
+      setLoadingProductDetails(false);
+    }
+  }, []);
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInputMessage('');
-
-    // Simulate local AI response after a brief delay for frontend presentation
-    setTimeout(() => {
-      const selectedProdObj = mockProducts.find((p) => p.id === selectedProduct) || mockProducts[0];
-      const aiReply = {
-        id: Date.now() + 1,
-        sender: 'ai',
-        text: `Based on your ${selectedProdObj.name} records and warranty documents:
-
-• **Warranty Status**: ${selectedProdObj.warrantyStatus.toUpperCase()} (Expires ${selectedProdObj.warrantyExpiry})
-• **Provider**: ${selectedProdObj.warrantyDetails.provider}
-• **Inclusions**: ${selectedProdObj.warrantyDetails.inclusions.join(', ')}
-
-💡 *Tip for student demonstration: In the next backend module, this will be connected to your local Ollama LLM to parse real manuals and draft actual claim letters.*`,
-        timestamp: 'Just now'
-      };
-      setMessages((prev) => [...prev, aiReply]);
-    }, 600);
-  };
+  useEffect(() => {
+    if (selectedProductId) {
+      fetchSelectedProductDetails(selectedProductId);
+    }
+  }, [selectedProductId, fetchSelectedProductDetails]);
 
   return (
     <PageContainer
       title="Product AI Assistant"
-      subtitle="Interact with your documents and warranty terms privately using local Ollama LLM inference."
+      subtitle="Context-aware, private assistant anchored to your specific product documents, warranties, and maintenance records."
       actions={
         <div className="ai-status-tag">
           <Cpu size={16} />
-          <span>Local Engine: LLaMA 3.2 (Ollama)</span>
+          <span>
+            {aiStatus?.isAvailable
+              ? `Local Engine: ${aiStatus.configuredModel} (Ollama)`
+              : 'Local Engine: Offline Fallback'}
+          </span>
         </div>
       }
     >
-      <div className="ai-chat-layout">
-        {/* Left Side: Product Selector & Preset Prompts */}
-        <div className="ai-sidebar-col">
-          <Card title="Context Product">
-            <div className="product-selector-group">
-              <label className="selector-label">Active Device for Query:</label>
-              <select
-                className="ai-product-select"
-                value={selectedProduct}
-                onChange={(e) => setSelectedProduct(e.target.value)}
-              >
-                {mockProducts.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.brand})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </Card>
-
-          <Card title="Quick Suggested Prompts" subtitle="Click any prompt to ask the AI:">
-            <div className="preset-prompts-list">
-              {mockChatPresets.map((preset, idx) => (
-                <button
-                  key={idx}
-                  className="preset-prompt-btn"
-                  onClick={() => handleSendMessage(preset)}
+      {loading ? (
+        <LoadingState message="Loading AI Assistant..." description="Checking local Ollama status and catalog..." />
+      ) : products.length === 0 ? (
+        <Card className="dashboard-empty-card">
+          <div className="empty-onboarding-box">
+            <Package size={36} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
+            <h4 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-main)' }}>
+              No Products Registered
+            </h4>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: '8px 0 16px' }}>
+              Add a physical item (e.g. laptop, TV, mobile) in the catalog to begin context-anchored AI conversations.
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <div className="ai-chat-layout">
+          {/* Left Side: Product Selector */}
+          <div className="ai-sidebar-col">
+            <Card title="Active Target Asset" subtitle="All AI reasoning is anchored to this product">
+              <div className="product-selector-group">
+                <label className="selector-label">Select Registered Product:</label>
+                <select
+                  className="ai-product-select"
+                  value={selectedProductId}
+                  onChange={(e) => setSelectedProductId(e.target.value)}
                 >
-                  <Sparkles size={14} className="preset-icon" />
-                  <span>{preset}</span>
-                </button>
-              ))}
-            </div>
-          </Card>
-        </div>
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.brand})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        {/* Right Side: Chat Window */}
-        <div className="ai-chat-col">
-          <Card className="ai-chat-card" padding="none">
-            {/* Chat Messages */}
-            <div className="chat-messages-container">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`chat-bubble-row ${msg.sender === 'user' ? 'chat-row-user' : 'chat-row-ai'}`}
-                >
-                  <div className={`chat-avatar ${msg.sender === 'user' ? 'avatar-user' : 'avatar-ai'}`}>
-                    {msg.sender === 'user' ? <User size={16} /> : <Bot size={16} />}
-                  </div>
-                  <div className="chat-bubble-content">
-                    <div className="chat-bubble-header">
-                      <span className="chat-sender-name">
-                        {msg.sender === 'user' ? 'You' : 'OWNIT Local AI'}
-                      </span>
-                      <span className="chat-time">{msg.timestamp}</span>
-                    </div>
-                    <div className="chat-text" style={{ whiteSpace: 'pre-line' }}>
-                      {msg.text}
-                    </div>
-                  </div>
+              {productData.product && (
+                <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                  <div><strong>Category:</strong> {productData.product.category}</div>
+                  <div><strong>Model:</strong> {productData.product.model}</div>
+                  <div><strong>Warranties:</strong> {productData.warranties.length} Component(s)</div>
+                  <div><strong>Documents:</strong> {productData.documents.length} Attached</div>
+                  <div><strong>Maintenance:</strong> {productData.maintenanceRecords.length} Log(s)</div>
                 </div>
-              ))}
-            </div>
+              )}
+            </Card>
+          </div>
 
-            {/* Input Bar */}
-            <div className="chat-input-bar">
-              <input
-                type="text"
-                placeholder="Ask about warranty terms, maintenance, or claim drafting..."
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSendMessage();
-                }}
-                className="chat-input-field"
+          {/* Right Side: Chat Window */}
+          <div className="ai-chat-col">
+            {loadingProductDetails || !productData.product ? (
+              <LoadingState message="Connecting to product records..." />
+            ) : (
+              <ProductAIChatWidget
+                product={productData.product}
+                warranties={productData.warranties}
+                documents={productData.documents}
+                maintenanceRecords={productData.maintenanceRecords}
               />
-              <Button
-                variant="primary"
-                icon={Send}
-                onClick={() => handleSendMessage()}
-                disabled={!inputMessage.trim()}
-              >
-                Send
-              </Button>
-            </div>
-          </Card>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </PageContainer>
   );
 }
+

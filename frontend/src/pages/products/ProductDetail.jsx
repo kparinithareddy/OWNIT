@@ -38,7 +38,8 @@ import {
   Lightbulb,
   Building,
   Activity,
-  TrendingUp
+  TrendingUp,
+  Bot
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -52,6 +53,7 @@ import WarrantyFormModal from '../../components/warranty/WarrantyFormModal';
 import MaintenanceFormModal from '../../components/maintenance/MaintenanceFormModal';
 import ProductLifecycleTimeline from '../../components/timeline/ProductLifecycleTimeline';
 import ProductLifeScoreCard from '../../components/products/ProductLifeScoreCard';
+import ProductAIChatWidget from '../../components/ai/ProductAIChatWidget';
 import { productsApi, documentsApi, warrantiesApi, maintenanceApi } from '../../services/api';
 import './ProductDetail.css';
 
@@ -260,6 +262,13 @@ export default function ProductDetail() {
       actions={
         <div className="product-detail-actions">
           <Button
+            variant="primary"
+            icon={Bot}
+            onClick={() => setActiveTab('ai')}
+          >
+            Ask AI Assistant
+          </Button>
+          <Button
             variant="outline"
             icon={Wrench}
             onClick={() => {
@@ -389,6 +398,12 @@ export default function ProductDetail() {
           <Layers size={16} /> Asset Overview
         </button>
         <button
+          className={`product-tab-btn ${activeTab === 'ai' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ai')}
+        >
+          <Bot size={16} /> AI Assistant
+        </button>
+        <button
           className={`product-tab-btn ${activeTab === 'lifescore' ? 'active' : ''}`}
           onClick={() => setActiveTab('lifescore')}
         >
@@ -419,6 +434,16 @@ export default function ProductDetail() {
           <FileText size={16} /> Attached Documents ({documents.length})
         </button>
       </div>
+
+      {/* TAB: AI ASSISTANT */}
+      {activeTab === 'ai' && (
+        <ProductAIChatWidget
+          product={product}
+          warranties={warranties}
+          documents={documents}
+          maintenanceRecords={maintenanceRecords}
+        />
+      )}
 
       {/* TAB: LIFESCORE */}
       {activeTab === 'lifescore' && (

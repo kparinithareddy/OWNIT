@@ -189,8 +189,12 @@ export const maintenanceApi = {
 // Local AI (Ollama) API methods
 export const aiApi = {
   getStatus: () => request('/ai/status', { method: 'GET' }),
-  testPrompt: (payload) => request('/ai/test', { method: 'POST', body: payload })
+  testPrompt: (payload) => request('/ai/test', { method: 'POST', body: payload }),
+  getChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'GET' }),
+  sendMessage: (payload) => request('/ai/chat', { method: 'POST', body: payload }),
+  clearChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'DELETE' })
 };
+
 
 
 
