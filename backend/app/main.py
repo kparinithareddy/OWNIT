@@ -1,9 +1,37 @@
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
+from app.core.database import db_manager
 from app.core.handlers import register_exception_handlers
 from app.api.v1.router import api_v1_router
+
+# Configure basic logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("ownit.main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manages the application lifecycle:
+    - Connects to MongoDB on startup without crashing if offline
+    - Gracefully disconnects MongoDB on shutdown
+    """
+    logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}...")
+    # Initialize MongoDB connection
+    await db_manager.connect()
+
+    yield
+
+    # Shutdown logic
+    logger.info(f"Shutting down {settings.PROJECT_NAME}...")
+    await db_manager.disconnect()
 
 
 def create_app() -> FastAPI:
@@ -16,7 +44,8 @@ def create_app() -> FastAPI:
         version=settings.VERSION,
         docs_url="/docs",
         redoc_url="/redoc",
-        openapi_url="/openapi.json"
+        openapi_url="/openapi.json",
+        lifespan=lifespan
     )
 
     # 1. Configure CORS middleware for local frontend development
@@ -42,7 +71,8 @@ def create_app() -> FastAPI:
             "tagline": settings.PROJECT_TAGLINE,
             "version": settings.VERSION,
             "docs": "/docs",
-            "health_v1": f"{settings.API_V1_PREFIX}/health"
+            "health_v1": f"{settings.API_V1_PREFIX}/health",
+            "db_health_v1": f"{settings.API_V1_PREFIX}/health/db"
         }
 
     return app

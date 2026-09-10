@@ -21,9 +21,14 @@ class Settings(BaseSettings):
     # CORS Configuration (Allowed origins for frontend clients)
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
 
-    # Future integration settings (Kept safe in environment)
+    # MongoDB Configuration
     MONGODB_URI: str = "mongodb://localhost:27017"
-    MONGODB_DB_NAME: str = "ownit_db"
+    MONGODB_DB_NAME: str = "OWNIT"
+    MONGODB_TIMEOUT_MS: int = 3000  # 3 seconds connection timeout
+    MONGODB_MAX_POOL_SIZE: int = 10
+    MONGODB_MIN_POOL_SIZE: int = 1
+
+    # Security & Authentication (Kept safe in environment for future modules)
     JWT_SECRET_KEY: str = "insecure_dev_key_must_be_set_in_env_for_production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
