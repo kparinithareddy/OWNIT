@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import logging
 from datetime import datetime, timezone
@@ -18,6 +19,35 @@ from app.core.exceptions import (
 from app.schemas.document import DocumentResponse, VALID_DOCUMENT_TYPES
 
 logger = logging.getLogger("ownit.services.document")
+
+
+def validate_magic_bytes(file_bytes: bytes, ext: str) -> bool:
+    """
+    Inspects leading file signature magic bytes to guarantee file format authenticity
+    and prevent renamed malicious scripts or executables.
+    """
+    if len(file_bytes) < 4:
+        return False
+    if ext == ".pdf":
+        return file_bytes.startswith(b"%PDF")
+    elif ext in [".jpg", ".jpeg"]:
+        return file_bytes.startswith(b"\xff\xd8\xff")
+    elif ext == ".png":
+        return file_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+    elif ext == ".webp":
+        return file_bytes.startswith(b"RIFF") and b"WEBP" in file_bytes[:16]
+    elif ext == ".gif":
+        return file_bytes.startswith(b"GIF87a") or file_bytes.startswith(b"GIF89a")
+    return True
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Strips directory separators, null bytes, quotes, and control chars to prevent
+    path traversal and HTTP response splitting.
+    """
+    clean = re.sub(r'[\r\n\x00-\x1f"\\/]', '_', os.path.basename(filename))
+    return clean[:100] if clean else "document"
 
 
 def format_doc_response(doc: Dict[str, Any], product_info: Optional[Dict[str, Any]] = None) -> DocumentResponse:
@@ -175,10 +205,21 @@ class DocumentService:
         if file_size == 0:
             raise ValidationException("Uploaded file is empty (0 bytes).")
 
+        # 4b. Deep file signature / Magic byte verification
+        if not validate_magic_bytes(file_bytes, ext):
+            raise ValidationException(
+                f"File content signature does not match claimed file extension '{ext}'. Upload rejected for security reasons.",
+                details={"extension": ext}
+            )
+
         # 5. Generate unique safe stored filename
         unique_token = uuid.uuid4().hex[:12]
+        clean_original = sanitize_filename(original_filename)
         stored_filename = f"{user_id[:8]}_{product_id[:8]}_{unique_token}{ext}"
         storage_path = os.path.join(settings.absolute_upload_dir, stored_filename)
+
+        # Ensure storage directory exists
+        os.makedirs(settings.absolute_upload_dir, exist_ok=True)
 
         # 6. Write physical file to storage
         try:
@@ -194,7 +235,7 @@ class DocumentService:
             "userId": user_id,
             "productId": product_id,
             "documentType": document_type,
-            "originalFilename": original_filename,
+            "originalFilename": clean_original,
             "storedFilename": stored_filename,
             "filePath": storage_path,
             "mimeType": mime_type,
@@ -207,7 +248,7 @@ class DocumentService:
         result = await self.collection.insert_one(doc_record)
         doc_record["_id"] = result.inserted_id
 
-        logger.info(f"Document uploaded: '{original_filename}' (ID: {doc_record['_id']}) for product {product_id} by user {user_id}")
+        logger.info(f"Document uploaded: '{clean_original}' (ID: {doc_record['_id']}) for product {product_id} by user {user_id}")
         return format_doc_response(doc_record, product_doc)
 
     async def list_user_documents(
@@ -264,6 +305,7 @@ class DocumentService:
     async def get_file_for_download(self, document_id: str, user_id: str) -> Tuple[str, str, str]:
         """
         Retrieves physical file path, original filename, and MIME type for serving/downloading.
+        Enforces strict path traversal containment within upload root.
         """
         doc = await self.get_document_by_id(document_id, user_id)
         file_path = doc.get("filePath")
@@ -277,7 +319,15 @@ class DocumentService:
                 logger.error(f"Physical file missing on disk: {file_path}")
                 raise NotFoundException("Physical file not found on server disk.")
 
-        return file_path, doc["originalFilename"], doc["mimeType"]
+        # Path traversal containment check
+        canonical_path = os.path.realpath(file_path)
+        canonical_root = os.path.realpath(settings.absolute_upload_dir)
+        if not canonical_path.startswith(canonical_root):
+            logger.error(f"Path traversal detected: {canonical_path} outside {canonical_root}")
+            raise UnauthorizedException("Access denied to requested file path.")
+
+        safe_original_name = sanitize_filename(doc.get("originalFilename", "document"))
+        return canonical_path, safe_original_name, doc["mimeType"]
 
     async def delete_document(self, document_id: str, user_id: str) -> bool:
         """

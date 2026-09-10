@@ -86,6 +86,7 @@ export async function request(endpoint, options = {}) {
 export const authApi = {
   signup: (payload) => request('/auth/signup', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
   getMe: () => request('/auth/me', { method: 'GET' }),
   updatePreferences: (payload) => request('/auth/preferences', { method: 'PATCH', body: payload })
 };

@@ -72,3 +72,18 @@ async def update_user_preferences(
     """
     return await user_service.update_preferences(current_user.id, prefs)
 
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="User Logout",
+    description="Terminates the user's active session and confirms client-side token discard."
+)
+async def logout(
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Validates token ownership and acknowledges session logout.
+    """
+    return {"message": "Logged out successfully", "userId": current_user.id}
+

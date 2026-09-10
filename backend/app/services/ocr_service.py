@@ -21,9 +21,8 @@ from app.schemas.ocr import (
     OCRConfirmItem
 )
 from app.schemas.product import ProductResponse
-from app.schemas.document import DocumentResponse
 from app.services.product_service import format_product_doc
-from app.services.document_service import format_doc_response
+from app.services.document_service import format_doc_response, validate_magic_bytes, sanitize_filename
 
 logger = logging.getLogger("ownit.services.ocr")
 
@@ -263,6 +262,10 @@ class OCRService:
             max_mb = settings.MAX_UPLOAD_SIZE_BYTES / (1024 * 1024)
             raise ValidationException(f"File size exceeds limit of {max_mb:.0f} MB.")
 
+        # Deep magic byte check
+        if not validate_magic_bytes(file_bytes, ext_lower):
+            raise ValidationException(f"File signature does not match claimed extension '{ext}'. Receipt scan rejected.")
+
         # Save temporary file for auto-attachment upon confirmation
         temp_token = f"temp_{uuid.uuid4().hex[:16]}"
         temp_filename = f"{temp_token}{ext_lower}"
@@ -363,44 +366,54 @@ class OCRService:
 
         # 2. If tempFileToken is present, move temp receipt file into permanent documents storage
         if payload.tempFileToken and created_products:
-            matching_files = [f for f in os.listdir(TEMP_UPLOAD_DIR) if f.startswith(payload.tempFileToken)]
-            if matching_files:
-                temp_filename = matching_files[0]
-                temp_file_path = os.path.join(TEMP_UPLOAD_DIR, temp_filename)
-                _, ext = os.path.splitext(temp_filename)
+            clean_token = payload.tempFileToken.strip()
+            # Ensure token contains only safe characters
+            if re.match(r"^[a-zA-Z0-9_]{1,64}$", clean_token):
+                matching_files = [f for f in os.listdir(TEMP_UPLOAD_DIR) if f.startswith(clean_token)]
+                if matching_files:
+                    temp_filename = matching_files[0]
+                    temp_file_path = os.path.realpath(os.path.join(TEMP_UPLOAD_DIR, temp_filename))
+                    temp_dir_canonical = os.path.realpath(TEMP_UPLOAD_DIR)
 
-                # Attach document to the first created product
-                primary_product = created_products[0]
-                primary_product_id = primary_product.id
+                    if temp_file_path.startswith(temp_dir_canonical) and os.path.exists(temp_file_path):
+                        _, ext = os.path.splitext(temp_filename)
 
-                unique_token = uuid.uuid4().hex[:12]
-                stored_filename = f"{user_id[:8]}_{primary_product_id[:8]}_{unique_token}{ext}"
-                permanent_path = os.path.join(settings.absolute_upload_dir, stored_filename)
+                        # Attach document to the first created product
+                        primary_product = created_products[0]
+                        primary_product_id = primary_product.id
 
-                try:
-                    shutil.move(temp_file_path, permanent_path)
-                    file_size = os.path.getsize(permanent_path)
-                    mime_type = "application/pdf" if ext == ".pdf" else "image/jpeg"
+                        unique_token = uuid.uuid4().hex[:12]
+                        stored_filename = f"{user_id[:8]}_{primary_product_id[:8]}_{unique_token}{ext}"
+                        permanent_path = os.path.join(settings.absolute_upload_dir, stored_filename)
 
-                    doc_record = {
-                        "userId": user_id,
-                        "productId": primary_product_id,
-                        "documentType": payload.documentType or "Purchase Bill",
-                        "originalFilename": f"Receipt_{primary_product.name[:20].replace(' ', '_')}{ext}",
-                        "storedFilename": stored_filename,
-                        "filePath": permanent_path,
-                        "mimeType": mime_type,
-                        "fileSize": file_size,
-                        "uploadedAt": now,
-                        "productName": primary_product.name,
-                        "productBrand": primary_product.brand
-                    }
-                    doc_res = await self.documents_collection.insert_one(doc_record)
-                    doc_record["_id"] = doc_res.inserted_id
-                    attached_docs.append(format_doc_response(doc_record, {"name": primary_product.name, "brand": primary_product.brand}))
-                    logger.info(f"Receipt attached as document {doc_record['_id']} to product {primary_product_id}")
-                except Exception as exc:
-                    logger.warning(f"Could not finalize temp receipt document attachment: {exc}")
+                        # Ensure target upload directory exists
+                        os.makedirs(settings.absolute_upload_dir, exist_ok=True)
+
+                        try:
+                            shutil.move(temp_file_path, permanent_path)
+                            file_size = os.path.getsize(permanent_path)
+                            mime_type = "application/pdf" if ext == ".pdf" else "image/jpeg"
+
+                            clean_product_name = sanitize_filename(primary_product.name[:30])
+                            doc_record = {
+                                "userId": user_id,
+                                "productId": primary_product_id,
+                                "documentType": payload.documentType or "Purchase Bill",
+                                "originalFilename": f"Receipt_{clean_product_name}{ext}",
+                                "storedFilename": stored_filename,
+                                "filePath": permanent_path,
+                                "mimeType": mime_type,
+                                "fileSize": file_size,
+                                "uploadedAt": now,
+                                "productName": primary_product.name,
+                                "productBrand": primary_product.brand
+                            }
+                            doc_res = await self.documents_collection.insert_one(doc_record)
+                            doc_record["_id"] = doc_res.inserted_id
+                            attached_docs.append(format_doc_response(doc_record, {"name": primary_product.name, "brand": primary_product.brand}))
+                            logger.info(f"Receipt attached as document {doc_record['_id']} to product {primary_product_id}")
+                        except Exception as exc:
+                            logger.warning(f"Could not finalize temp receipt document attachment: {exc}")
 
         item_count = len(created_products)
         return OCRConfirmResponse(
