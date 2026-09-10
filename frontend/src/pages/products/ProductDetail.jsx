@@ -54,6 +54,7 @@ import MaintenanceFormModal from '../../components/maintenance/MaintenanceFormMo
 import ProductLifecycleTimeline from '../../components/timeline/ProductLifecycleTimeline';
 import ProductLifeScoreCard from '../../components/products/ProductLifeScoreCard';
 import ProductAIChatWidget from '../../components/ai/ProductAIChatWidget';
+import WarrantyIntelligenceCard from '../../components/warranty/WarrantyIntelligenceCard';
 import { productsApi, documentsApi, warrantiesApi, maintenanceApi } from '../../services/api';
 import './ProductDetail.css';
 
@@ -398,6 +399,12 @@ export default function ProductDetail() {
           <Layers size={16} /> Asset Overview
         </button>
         <button
+          className={`product-tab-btn ${activeTab === 'intelligence' ? 'active' : ''}`}
+          onClick={() => setActiveTab('intelligence')}
+        >
+          <ShieldAlert size={16} /> Warranty Intelligence
+        </button>
+        <button
           className={`product-tab-btn ${activeTab === 'ai' ? 'active' : ''}`}
           onClick={() => setActiveTab('ai')}
         >
@@ -434,6 +441,15 @@ export default function ProductDetail() {
           <FileText size={16} /> Attached Documents ({documents.length})
         </button>
       </div>
+
+      {/* TAB: WARRANTY INTELLIGENCE */}
+      {activeTab === 'intelligence' && (
+        <WarrantyIntelligenceCard
+          product={product}
+          warranties={warranties}
+          documents={documents}
+        />
+      )}
 
       {/* TAB: AI ASSISTANT */}
       {activeTab === 'ai' && (

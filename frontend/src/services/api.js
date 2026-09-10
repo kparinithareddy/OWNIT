@@ -195,6 +195,14 @@ export const aiApi = {
   clearChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'DELETE' })
 };
 
+// Warranty Intelligence API methods
+export const warrantyIntelligenceApi = {
+  analyze: (payload) => request('/warranty-intelligence/analyze', { method: 'POST', body: payload }),
+  quickCheck: (productId, questionType = 'is_active') =>
+    request(`/warranty-intelligence/quick-check/${productId}?questionType=${questionType}`, { method: 'GET' })
+};
+
+
 
 
 
