@@ -10,20 +10,28 @@ import {
   RefreshCw,
   Plus,
   Trash2,
+  Edit3,
+  ChevronDown,
+  ChevronUp,
   Eye,
   EyeOff,
   Sparkles,
-  Layers,
-  ArrowRight,
   ShieldCheck,
   HelpCircle,
-  FileSpreadsheet
+  CheckSquare,
+  Square,
+  Package,
+  Calendar,
+  DollarSign,
+  Store,
+  Hash,
+  Tag
 } from 'lucide-react';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import Input from '../common/Input';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
-import { ocrApi, ApiError } from '../../services/api';
+import { ocrApi } from '../../services/api';
 import './ReceiptScannerModal.css';
 
 export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }) {
@@ -32,9 +40,9 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
   const [filePreview, setFilePreview] = useState(null);
   const [scanResult, setScanResult] = useState(null);
   const [candidateItems, setCandidateItems] = useState([]);
+  const [editingIndex, setEditingIndex] = useState(null);
   const [attachDocument, setAttachDocument] = useState(true);
   const [showRawText, setShowRawText] = useState(false);
-  const [activeItemIndex, setActiveItemIndex] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -52,9 +60,9 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
     setFilePreview(null);
     setScanResult(null);
     setCandidateItems([]);
+    setEditingIndex(null);
     setAttachDocument(true);
     setShowRawText(false);
-    setActiveItemIndex(0);
     setError(null);
     setWarnings([]);
     setSuccessCount(0);
@@ -69,7 +77,6 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size
     if (file.size > 10 * 1024 * 1024) {
       setError('File size exceeds the 10 MB limit.');
       return;
@@ -78,7 +85,6 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
     setSelectedFile(file);
     setError(null);
 
-    // Create preview if image
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = () => setFilePreview(reader.result);
@@ -87,7 +93,6 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
       setFilePreview(null);
     }
 
-    // Automatically trigger scan
     processReceiptScan(file);
   };
 
@@ -102,42 +107,45 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
     try {
       const response = await ocrApi.scan(formData);
       setScanResult(response);
-      setCandidateItems(
-        response.items && response.items.length > 0
-          ? response.items.map((item, idx) => ({
-              ...item,
-              tempId: `item_${idx}_${Date.now()}`,
-              name: item.name || '',
-              brand: item.brand || '',
-              model: item.model || '',
-              category: item.category || 'Other',
-              purchaseDate: item.purchaseDate || new Date().toISOString().split('T')[0],
-              price: item.price !== null && item.price !== undefined ? item.price : '',
-              quantity: item.quantity || 1,
-              seller: item.seller || response.seller || '',
-              serialNumber: item.serialNumber || '',
-              imei: item.imei || '',
-              notes: item.warrantyInfo ? `Warranty: ${item.warrantyInfo}` : ''
-            }))
-          : [
-              {
-                tempId: `item_0_${Date.now()}`,
-                name: 'Scanned Purchase',
-                brand: '',
-                model: '',
-                category: 'Other',
-                purchaseDate: response.invoiceDate || new Date().toISOString().split('T')[0],
-                price: response.totalAmount || '',
-                quantity: 1,
-                seller: response.seller || '',
-                serialNumber: '',
-                imei: '',
-                notes: '',
-                confidenceLevel: 'medium',
-                uncertainFields: ['name', 'category']
-              }
-            ]
-      );
+
+      const items = (response.items && response.items.length > 0)
+        ? response.items.map((item, idx) => ({
+            ...item,
+            tempId: `item_${idx}_${Date.now()}`,
+            selected: true, // Selected by default for user confirmation
+            name: item.name || '',
+            brand: item.brand || '',
+            model: item.model || '',
+            category: item.category || 'Other',
+            purchaseDate: item.purchaseDate || response.invoiceDate || new Date().toISOString().split('T')[0],
+            price: item.price !== null && item.price !== undefined ? item.price : '',
+            quantity: item.quantity || 1,
+            seller: item.seller || response.seller || '',
+            serialNumber: item.serialNumber || '',
+            imei: item.imei || '',
+            notes: item.warrantyInfo ? `Warranty: ${item.warrantyInfo}` : ''
+          }))
+        : [
+            {
+              tempId: `item_0_${Date.now()}`,
+              selected: true,
+              name: 'Detected Product',
+              brand: '',
+              model: '',
+              category: 'Other',
+              purchaseDate: response.invoiceDate || new Date().toISOString().split('T')[0],
+              price: response.totalAmount || '',
+              quantity: 1,
+              seller: response.seller || '',
+              serialNumber: '',
+              imei: '',
+              notes: '',
+              confidenceLevel: 'medium',
+              uncertainFields: ['name', 'category']
+            }
+          ];
+
+      setCandidateItems(items);
       setWarnings(response.warnings || []);
       setStep('review');
     } catch (err) {
@@ -146,6 +154,27 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleSelect = (index) => {
+    setCandidateItems((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        selected: !updated[index].selected
+      };
+      return updated;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const allSelected = candidateItems.every((it) => it.selected);
+    setCandidateItems((prev) =>
+      prev.map((it) => ({
+        ...it,
+        selected: !allSelected
+      }))
+    );
   };
 
   const handleFieldChange = (index, field, value) => {
@@ -162,6 +191,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
   const handleAddItem = () => {
     const newItem = {
       tempId: `item_${candidateItems.length}_${Date.now()}`,
+      selected: true,
       name: '',
       brand: '',
       model: '',
@@ -176,25 +206,40 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
       confidenceLevel: 'high',
       uncertainFields: []
     };
-    setCandidateItems([...candidateItems, newItem]);
-    setActiveItemIndex(candidateItems.length);
+    const nextList = [...candidateItems, newItem];
+    setCandidateItems(nextList);
+    setEditingIndex(nextList.length - 1);
   };
 
   const handleRemoveItem = (index) => {
-    if (candidateItems.length <= 1) return;
-    const updated = candidateItems.filter((_, idx) => idx !== index);
-    setCandidateItems(updated);
-    if (activeItemIndex >= updated.length) {
-      setActiveItemIndex(Math.max(0, updated.length - 1));
+    if (candidateItems.length <= 1) {
+      // If only 1 item left, uncheck instead of removing
+      setCandidateItems((prev) => {
+        const updated = [...prev];
+        updated[0].selected = false;
+        return updated;
+      });
+      return;
+    }
+    setCandidateItems((prev) => prev.filter((_, idx) => idx !== index));
+    if (editingIndex === index) {
+      setEditingIndex(null);
+    } else if (editingIndex > index) {
+      setEditingIndex(editingIndex - 1);
     }
   };
 
   const handleConfirmSave = async () => {
-    // Validate that all items have a name
-    for (let i = 0; i < candidateItems.length; i++) {
-      if (!candidateItems[i].name.trim()) {
-        setError(`Item #${i + 1} must have a valid product name.`);
-        setActiveItemIndex(i);
+    const selectedItems = candidateItems.filter((it) => it.selected);
+    if (selectedItems.length === 0) {
+      setError('Please select at least one product to save to your inventory.');
+      return;
+    }
+
+    // Validate valid names
+    for (let i = 0; i < selectedItems.length; i++) {
+      if (!selectedItems[i].name.trim()) {
+        setError(`Product #${i + 1} must have a valid product name.`);
         return;
       }
     }
@@ -203,7 +248,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
     setError(null);
 
     const payload = {
-      items: candidateItems.map((it) => ({
+      items: selectedItems.map((it) => ({
         name: it.name.trim(),
         brand: it.brand ? it.brand.trim() : null,
         model: it.model ? it.model.trim() : null,
@@ -222,7 +267,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
 
     try {
       const res = await ocrApi.confirm(payload);
-      setSuccessCount(res.createdProducts?.length || candidateItems.length);
+      setSuccessCount(res.createdProducts?.length || selectedItems.length);
       setStep('success');
       if (onProductsSaved) {
         onProductsSaved(res.createdProducts);
@@ -234,7 +279,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
     }
   };
 
-  const currentItem = candidateItems[activeItemIndex] || candidateItems[0];
+  const selectedCount = candidateItems.filter((it) => it.selected).length;
 
   return (
     <div className="receipt-modal-backdrop" onClick={handleClose}>
@@ -244,9 +289,9 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
           <div className="receipt-header-info">
             <div className="receipt-badge-title">
               <Sparkles size={18} className="sparkle-icon" />
-              <h3>Scan Receipt (AI & OCR)</h3>
+              <h3>Scan Receipt & Extract Products</h3>
             </div>
-            <p>Extract, review, and confirm product details from bills & invoices</p>
+            <p>Accurately extract multiple items, models, and prices with review & confirmation</p>
           </div>
           <button className="receipt-close-btn" onClick={handleClose}>
             <X size={20} />
@@ -262,7 +307,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
             </div>
           )}
 
-          {/* STEP 1: UPLOAD & DROPZONE */}
+          {/* STEP 1: UPLOAD VIEW */}
           {step === 'upload' && (
             <div className="receipt-upload-view">
               <div
@@ -279,9 +324,9 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                 <div className="dropzone-icon-wrap">
                   <Upload size={36} />
                 </div>
-                <h4>Upload or Drop Receipt File</h4>
-                <p>Supports clear photos (JPG, PNG, WEBP) and multi-page PDF invoices</p>
-                <span className="file-size-hint">Max file size: 10 MB</span>
+                <h4>Upload Receipt or Invoice</h4>
+                <p>Supports photos (JPG, PNG, WEBP) and multi-page PDF documents</p>
+                <span className="file-size-hint">Extracts multiple products in a single bill • 100% offline & secure</span>
 
                 <div className="receipt-action-buttons" onClick={(e) => e.stopPropagation()}>
                   <Button
@@ -318,16 +363,15 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                 onChange={handleFileSelect}
               />
 
-              {/* Tips for best OCR results */}
               <div className="ocr-tips-card">
                 <div className="tips-title">
                   <ShieldCheck size={16} />
-                  <span>Tips for 100% accurate scans</span>
+                  <span>How multi-product extraction works</span>
                 </div>
                 <ul>
-                  <li>Ensure good lighting without harsh glare or heavy shadows.</li>
-                  <li>Flatten thermal receipts and keep all edges inside the camera frame.</li>
-                  <li>Digital PDF invoices from Amazon, Flipkart, or Croma extract with instant high precision.</li>
+                  <li>Invoices with multiple items (e.g. TV, Fridge, Headphones) are parsed into individual products.</li>
+                  <li>You can review, edit, uncheck, or remove any item before saving.</li>
+                  <li>Nothing is saved to your account until you review and click <strong>Confirm & Save</strong>.</li>
                 </ul>
               </div>
             </div>
@@ -342,41 +386,36 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                   <div className="scanner-laser"></div>
                 </div>
               </div>
-              <h4>Analyzing Receipt with Tesseract OCR & PyMuPDF...</h4>
+              <h4>Analyzing Receipt with OCR Pipeline...</h4>
               <p className="scanning-sub">
-                Detecting seller, line items, purchase dates, prices, and warranty terms...
+                Segmenting products, detecting brands, models, quantities, and purchase amounts...
               </p>
             </div>
           )}
 
-          {/* STEP 3: REVIEW & CONFIRM WORKFLOW */}
-          {step === 'review' && currentItem && (
+          {/* STEP 3: CONFIRMATION UI - DETECTED PRODUCTS LIST */}
+          {step === 'review' && (
             <div className="receipt-review-view">
-              {/* Top Banner with Confidence & Guidance */}
+              {/* Review Bar & Quick Controls */}
               <div className="review-top-bar">
-                <div className="confidence-pill-wrap">
-                  <span className="confidence-label">Scan Confidence:</span>
-                  {scanResult?.overallConfidenceLevel === 'high' && (
-                    <Badge variant="success">
-                      <CheckCircle2 size={13} style={{ marginRight: '4px' }} />
-                      High Accuracy ({Math.round((scanResult?.overallConfidence || 0.85) * 100)}%)
-                    </Badge>
-                  )}
-                  {scanResult?.overallConfidenceLevel === 'medium' && (
-                    <Badge variant="warning">
-                      <AlertTriangle size={13} style={{ marginRight: '4px' }} />
-                      Medium Confidence ({Math.round((scanResult?.overallConfidence || 0.65) * 100)}%)
-                    </Badge>
-                  )}
-                  {scanResult?.overallConfidenceLevel === 'low' && (
-                    <Badge variant="danger">
-                      <AlertCircle size={13} style={{ marginRight: '4px' }} />
-                      Low Confidence ({Math.round((scanResult?.overallConfidence || 0.4) * 100)}%)
-                    </Badge>
-                  )}
+                <div className="detected-products-header">
+                  <h4 className="detected-title">
+                    Detected Products ({selectedCount} of {candidateItems.length} selected)
+                  </h4>
+                  <p className="detected-sub">
+                    Select the products you want to add. Click <strong>Edit</strong> to modify details.
+                  </p>
                 </div>
 
                 <div className="review-bar-actions">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Plus size={14} />}
+                    onClick={handleAddItem}
+                  >
+                    Add Product
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -391,7 +430,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                 </div>
               </div>
 
-              {/* Warnings / Uncertainty Notices */}
+              {/* Warnings / Uncertainty banner */}
               {warnings.length > 0 && (
                 <div className="review-warnings-box">
                   <AlertTriangle size={16} />
@@ -403,155 +442,230 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                 </div>
               )}
 
-              {/* Multi-Item Selector Tabs (if more than 1 item) */}
-              <div className="item-tabs-header">
-                <div className="tabs-list">
-                  {candidateItems.map((item, idx) => (
-                    <button
+              {/* Multi-Product Candidate Cards */}
+              <div className="detected-products-list">
+                {candidateItems.map((item, idx) => {
+                  const isEditing = editingIndex === idx;
+                  return (
+                    <div
                       key={item.tempId}
-                      className={`item-tab-btn ${activeItemIndex === idx ? 'active' : ''}`}
-                      onClick={() => setActiveItemIndex(idx)}
+                      className={`detected-product-card ${item.selected ? 'is-selected' : 'is-unselected'}`}
                     >
-                      <span>Item {idx + 1}: {item.name || 'Unnamed'}</span>
-                      {candidateItems.length > 1 && (
-                        <span
-                          className="tab-delete-x"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveItem(idx);
-                          }}
-                          title="Remove item"
-                        >
-                          <X size={13} />
-                        </span>
+                      {/* Card Summary Header */}
+                      <div className="card-top-row">
+                        <div className="card-check-and-name">
+                          <button
+                            type="button"
+                            className="checkbox-btn"
+                            onClick={() => toggleSelect(idx)}
+                            title={item.selected ? 'Deselect product' : 'Select product'}
+                          >
+                            {item.selected ? (
+                              <CheckSquare size={20} className="check-icon checked" />
+                            ) : (
+                              <Square size={20} className="check-icon unchecked" />
+                            )}
+                          </button>
+
+                          <div className="product-title-badge-group">
+                            <span className="product-name-heading">
+                              {item.name || 'Unnamed Product'}
+                            </span>
+                            <Badge variant="primary">{item.category || 'Other'}</Badge>
+                            {item.brand && <Badge variant="neutral">{item.brand}</Badge>}
+                          </div>
+                        </div>
+
+                        <div className="card-action-btns">
+                          <button
+                            type="button"
+                            className={`action-btn-pill ${isEditing ? 'active' : ''}`}
+                            onClick={() => setEditingIndex(isEditing ? null : idx)}
+                          >
+                            <Edit3 size={14} />
+                            <span>{isEditing ? 'Done' : 'Edit'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="action-btn-pill danger"
+                            onClick={() => handleRemoveItem(idx)}
+                            title="Remove candidate"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Compact Attributes Preview (When Not Editing) */}
+                      {!isEditing && (
+                        <div className="card-meta-summary">
+                          {item.brand && (
+                            <div className="meta-pill">
+                              <span className="meta-k">Brand:</span>
+                              <span className="meta-v">{item.brand}</span>
+                            </div>
+                          )}
+                          {item.model && (
+                            <div className="meta-pill">
+                              <span className="meta-k">Model:</span>
+                              <span className="meta-v">{item.model}</span>
+                            </div>
+                          )}
+                          {item.price !== '' && item.price !== null && (
+                            <div className="meta-pill price-pill">
+                              <span className="meta-k">Price:</span>
+                              <span className="meta-v">₹{Number(item.price).toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                          {item.quantity > 1 && (
+                            <div className="meta-pill">
+                              <span className="meta-k">Qty:</span>
+                              <span className="meta-v">{item.quantity}</span>
+                            </div>
+                          )}
+                          {item.purchaseDate && (
+                            <div className="meta-pill">
+                              <span className="meta-k">Date:</span>
+                              <span className="meta-v">{item.purchaseDate}</span>
+                            </div>
+                          )}
+                          {item.seller && (
+                            <div className="meta-pill">
+                              <span className="meta-k">Seller:</span>
+                              <span className="meta-v">{item.seller}</span>
+                            </div>
+                          )}
+                          {item.serialNumber && (
+                            <div className="meta-pill">
+                              <span className="meta-k">S/N:</span>
+                              <span className="meta-v">{item.serialNumber}</span>
+                            </div>
+                          )}
+                        </div>
                       )}
-                    </button>
-                  ))}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon={<Plus size={14} />}
-                  onClick={handleAddItem}
-                >
-                  Add Another Item
-                </Button>
+
+                      {/* Full Form Editor (When Editing) */}
+                      {isEditing && (
+                        <div className="card-edit-form">
+                          <div className="edit-form-grid">
+                            <div className="form-col-full">
+                              <label className="field-label">
+                                Product Name <span className="req">*</span>
+                              </label>
+                              <Input
+                                placeholder="e.g. Samsung TV"
+                                value={item.name}
+                                onChange={(e) => handleFieldChange(idx, 'name', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Brand</label>
+                              <Input
+                                placeholder="e.g. Samsung, LG, Sony"
+                                value={item.brand || ''}
+                                onChange={(e) => handleFieldChange(idx, 'brand', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Model</label>
+                              <Input
+                                placeholder="e.g. UA55DU8000, GL-S292RDSX"
+                                value={item.model || ''}
+                                onChange={(e) => handleFieldChange(idx, 'model', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Category</label>
+                              <select
+                                className="custom-select-input"
+                                value={item.category}
+                                onChange={(e) => handleFieldChange(idx, 'category', e.target.value)}
+                              >
+                                {PRODUCT_CATEGORIES.map((cat) => (
+                                  <option key={cat} value={cat}>
+                                    {cat}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Purchase Date</label>
+                              <Input
+                                type="date"
+                                value={item.purchaseDate || ''}
+                                onChange={(e) => handleFieldChange(idx, 'purchaseDate', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Price (INR ₹)</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="e.g. 54990"
+                                value={item.price}
+                                onChange={(e) => handleFieldChange(idx, 'price', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Quantity</label>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => handleFieldChange(idx, 'quantity', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Seller / Store</label>
+                              <Input
+                                placeholder="e.g. Reliance Digital, Amazon"
+                                value={item.seller || ''}
+                                onChange={(e) => handleFieldChange(idx, 'seller', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Serial Number</label>
+                              <Input
+                                placeholder="e.g. 99482XJ"
+                                value={item.serialNumber || ''}
+                                onChange={(e) => handleFieldChange(idx, 'serialNumber', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">IMEI Number</label>
+                              <Input
+                                placeholder="15-digit IMEI (for mobiles)"
+                                value={item.imei || ''}
+                                onChange={(e) => handleFieldChange(idx, 'imei', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Warranty / Notes</label>
+                              <Input
+                                placeholder="e.g. 1 Year Manufacturer Warranty"
+                                value={item.notes || ''}
+                                onChange={(e) => handleFieldChange(idx, 'notes', e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Form Editor for the Active Item */}
-              <div className="review-form-grid">
-                <div className="form-col-full">
-                  <label className="field-label">
-                    Product Name <span className="req">*</span>
-                  </label>
-                  <Input
-                    placeholder="e.g. Apple iPhone 15 Pro 128GB"
-                    value={currentItem.name}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'name', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Brand</label>
-                  <Input
-                    placeholder="e.g. Apple, Samsung, Sony"
-                    value={currentItem.brand || ''}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'brand', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Model</label>
-                  <Input
-                    placeholder="e.g. A3101, XPS 9530"
-                    value={currentItem.model || ''}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'model', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Category</label>
-                  <select
-                    className="custom-select-input"
-                    value={currentItem.category}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'category', e.target.value)}
-                  >
-                    {PRODUCT_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Purchase Date</label>
-                  <Input
-                    type="date"
-                    value={currentItem.purchaseDate || ''}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'purchaseDate', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Price (INR ₹)</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 134900"
-                    value={currentItem.price}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'price', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Quantity</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={currentItem.quantity}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'quantity', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Seller / Retailer</label>
-                  <Input
-                    placeholder="e.g. Reliance Digital, Amazon, Croma"
-                    value={currentItem.seller || ''}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'seller', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Serial Number</label>
-                  <Input
-                    placeholder="e.g. F2LL89J90X"
-                    value={currentItem.serialNumber || ''}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'serialNumber', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">IMEI Number (Mobiles)</label>
-                  <Input
-                    placeholder="15-digit IMEI"
-                    value={currentItem.imei || ''}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'imei', e.target.value)}
-                  />
-                </div>
-
-                <div className="form-col">
-                  <label className="field-label">Warranty / Notes</label>
-                  <Input
-                    placeholder="e.g. 1 Year Manufacturer Warranty"
-                    value={currentItem.notes || ''}
-                    onChange={(e) => handleFieldChange(activeItemIndex, 'notes', e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {/* Auto Attach Document Checkbox */}
+              {/* Attach Document Checkbox */}
               <div className="attach-receipt-check">
                 <label className="checkbox-container">
                   <input
@@ -584,20 +698,20 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
             </div>
           )}
 
-          {/* STEP 4: SUCCESS STATE */}
+          {/* STEP 4: SUCCESS VIEW */}
           {step === 'success' && (
             <div className="receipt-success-view">
               <div className="success-icon-wrap">
                 <CheckCircle2 size={56} />
               </div>
-              <h4>Receipt Successfully Processed!</h4>
+              <h4>Products Successfully Saved!</h4>
               <p>
                 Created <strong>{successCount}</strong> product{successCount > 1 ? 's' : ''} in your inventory
                 {attachDocument ? ' and attached the receipt bill to documents.' : '.'}
               </p>
               <div className="success-actions">
                 <Button variant="primary" onClick={handleClose}>
-                  View Products
+                  View Inventory
                 </Button>
                 <Button
                   variant="outline"
@@ -616,7 +730,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
           <div className="receipt-modal-footer">
             <div className="footer-notice">
               <HelpCircle size={14} />
-              <span>OCR candidates are editable. Products are only saved when you click Confirm.</span>
+              <span>Only checked products [✓] will be saved to your inventory.</span>
             </div>
             <div className="footer-actions">
               <Button variant="ghost" onClick={handleClose} disabled={loading}>
@@ -627,8 +741,9 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                 icon={<CheckCircle2 size={16} />}
                 onClick={handleConfirmSave}
                 loading={loading}
+                disabled={selectedCount === 0}
               >
-                Confirm & Save {candidateItems.length > 1 ? `(${candidateItems.length} Items)` : 'Product'}
+                Confirm & Save {selectedCount > 0 ? `(${selectedCount} Product${selectedCount > 1 ? 's' : ''})` : ''}
               </Button>
             </div>
           </div>

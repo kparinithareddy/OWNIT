@@ -27,38 +27,7 @@ from app.services.document_service import format_doc_response
 
 logger = logging.getLogger("ownit.services.ocr")
 
-TEMP_UPLOAD_DIR = os.path.join(os.path.dirname(settings.absolute_upload_dir), "temp")
-os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
-
-# Known Brands List for entity recognition
-KNOWN_BRANDS = [
-    "Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Lenovo", "Asus",
-    "Acer", "Xiaomi", "OnePlus", "Google", "Bose", "JBL", "Realme",
-    "Vivo", "Oppo", "Whirlpool", "Bosch", "IFB", "Haier", "Godrej",
-    "Panasonic", "Philips", "Canon", "Nikon", "GoPro", "Nintendo",
-    "PlayStation", "Xbox", "Dyson", "Boat", "Noise", "Nothing", "Motorola",
-    "Sennheiser", "Marshall", "Voltas", "Daikin", "Carrier", "Blue Star"
-]
-
-# Known Retailers List
-KNOWN_RETAILERS = [
-    "Amazon", "Flipkart", "Reliance Digital", "Croma", "Apple Store",
-    "Vijay Sales", "Best Buy", "Walmart", "Samsung SmartCafe", "Poorvika",
-    "Sangeetha Mobiles", "Tata CLiQ", "Myntra", "Broma", "Aditya Vision"
-]
-
-CATEGORY_KEYWORDS = {
-    "Audio": [r"\bheadphones?\b", r"\bearbuds?\b", r"\bsoundbars?\b", r"\bspeakers?\b", r"\bairpods\b", r"\bgalaxy buds\b", r"wh-1000x", r"\bbluetooth speaker\b", r"\bearphones?\b", r"\btws\b"],
-    "Mobile": [r"\biphones?\b", r"\bgalaxy\b", r"\bgalaxy\s*[sza]?\d*\b", r"\bpixel\b", r"\bsmartphones?\b", r"\bredmi\b", r"\boneplus\b", r"\bcellular\b", r"\brealme\b", r"\boppo\b", r"\bvivo\b", r"\bmoto\b", r"\bmobile\b", r"\bphones?\b"],
-    "Laptop": [r"\bmacbooks?\b", r"\bthinkpads?\b", r"\bxps\b", r"\binspiron\b", r"\bpavilion\b", r"\blegion\b", r"\brog\b", r"\bzenbooks?\b", r"\blaptops?\b", r"\bnotebooks?\b", r"\bideapad\b", r"\bvivobook\b", r"\bsurface\b"],
-    "TV": [r"\bbravia\b", r"\boled\b", r"\bqled\b", r"\bsmart tv\b", r"\bled tv\b", r"\btelevision\b", r"\buhd tv\b", r"\bandroid tv\b", r"\b4k tv\b"],
-    "Refrigerator": [r"\bfridges?\b", r"\brefrigerators?\b", r"\bdouble door\b", r"\bfrost free\b", r"\bside by side\b", r"\bsingle door\b"],
-    "Washing Machine": [r"\bfront load\b", r"\btop load\b", r"\bwashing machine\b", r"\bwasher\b", r"\bdryer\b"],
-    "Air Conditioner": [r"\binverter ac\b", r"\bsplit ac\b", r"\bair conditioner\b", r"\bwindow ac\b", r"\b1\.5 ton\b", r"\b2 ton\b"],
-    "Camera": [r"\bdslr\b", r"\bmirrorless\b", r"\beos\b", r"\balpha a?\b", r"\blumix\b", r"\baction cam\b", r"\bgopro\b", r"\bcameras?\b", r"\blens\b"],
-    "Gaming": [r"\bplaystations?\b", r"\bps[45]\b", r"\bxbox\b", r"\bnintendo\b", r"\bswitch\b", r"\bgamepads?\b", r"\bcontrollers?\b", r"\bconsole\b"],
-    "Home Appliance": [r"\bmicrowaves?\b", r"\bvacuum\b", r"\bpurifiers?\b", r"\bmixer grinder\b", r"\birons?\b", r"\bkettles?\b", r"\bovens?\b", r"\btoasters?\b", r"\bblenders?\b"]
-}
+from app.services.product_extractor import extraction_manager, KNOWN_BRANDS, KNOWN_RETAILERS, CATEGORY_KEYWORDS
 
 
 class ReceiptParser:
@@ -223,7 +192,7 @@ class ReceiptParser:
     def parse_receipt(cls, raw_text: str, default_seller: Optional[str] = None) -> Tuple[List[OCRExtractedItem], Dict[str, Any]]:
         """
         Parses OCR text into structured items and receipt metadata.
-        Supports single item and multi-product line extraction.
+        Uses modular extraction_manager supporting multi-item receipts and local AI models.
         """
         normalized = cls.normalize_text(raw_text)
         seller = default_seller or cls.extract_seller(normalized)
@@ -234,141 +203,20 @@ class ReceiptParser:
         serial_no, imei = cls.extract_serial_and_imei(normalized)
         warranty_info = cls.extract_warranty_info(normalized)
 
-        # Look for explicit model field in text
-        explicit_model_match = re.search(r"(?:Model|Model\s*No|Model\s*#)\s*[:\-]?\s*([A-Za-z0-9\-_]{2,20})", normalized, re.IGNORECASE)
-        explicit_model = explicit_model_match.group(1).strip() if explicit_model_match else None
-
-        lines = [line.strip() for line in normalized.split("\n") if line.strip()]
-        candidate_items: List[OCRExtractedItem] = []
-
-        # Find lines that contain a brand or product keyword
-        item_lines = []
-        for line in lines:
-            # Skip header / footer lines
-            if re.search(r"(tax invoice|subtotal|gstin|cgst|sgst|authorized signatory|thank you|visit again|return policy|grand total|net amount|amount paid|total amount)", line, re.IGNORECASE):
-                continue
-            
-            has_brand = cls.detect_brand(line) is not None
-            has_cat = cls.infer_category(line) != "Other"
-            
-            if has_brand or has_cat:
-                item_lines.append(line)
-
-        # If specific item lines were detected, build items from them
-        if item_lines:
-            for line in item_lines[:5]:  # Limit to 5 items max per receipt scan
-                brand = cls.detect_brand(line)
-                category = cls.infer_category(line)
-                
-                # Extract clean name
-                clean_name = line
-                # Strip leading list indices or field prefixes like "1. ", "Item Description: ", etc.
-                clean_name = re.sub(r"^\s*(?:\d+[\.\)]\s*|(?:Item\s*Description|Product\s*Name|Description|Item)\s*[:\-]?\s*)", "", clean_name, flags=re.IGNORECASE)
-                
-                # Try finding price on that line
-                line_price_match = re.search(r"(?:₹|INR|Rs\.?|\$)\s*([\d,]+(?:\.\d{2})?)", line, re.IGNORECASE)
-                if not line_price_match:
-                    line_price_match = re.search(r"\b([\d,]+\.\d{2})\b", line)
-
-                if line_price_match:
-                    item_price = float(line_price_match.group(1).replace(",", ""))
-                elif len(item_lines) == 1 and total_amount:
-                    item_price = total_amount
-                elif total_amount:
-                    item_price = round(total_amount / len(item_lines), 2)
-                else:
-                    item_price = None
-
-                # Clean up name string - strip trailing currency/price and quantity annotations
-                clean_name = re.sub(r"(?:[-:]?\s*(?:₹|INR|Rs\.?|\$)\s*[\d,]+(?:\.\d{2})?|\s+[\d,]+\.\d{2})\s*$", "", clean_name, flags=re.IGNORECASE)
-                clean_name = re.sub(r"\b(?:qty|quantity|hsn|rate|mrp|discount)\b.*", "", clean_name, flags=re.IGNORECASE).strip()
-                if not clean_name:
-                    clean_name = f"{brand or 'Product'} ({category})"
-
-                # Model extraction heuristic
-                model = explicit_model
-                if not model:
-                    model_match = re.search(r"\b([A-Za-z0-9]+-[A-Za-z0-9]+|[A-Za-z0-9]{3,8}\d[A-Za-z0-9]{1,4})\b", line)
-                    model = model_match.group(1) if model_match else None
-
-                uncertain_fields = []
-                confidence = 0.85
-                if not item_price:
-                    uncertain_fields.append("price")
-                    confidence -= 0.15
-                if not dates:
-                    uncertain_fields.append("purchaseDate")
-                    confidence -= 0.1
-                if not brand:
-                    uncertain_fields.append("brand")
-                    confidence -= 0.1
-
-                confidence = max(0.2, min(1.0, confidence))
-                conf_level = "high" if confidence >= 0.8 else ("medium" if confidence >= 0.5 else "low")
-
-                candidate_items.append(OCRExtractedItem(
-                    name=clean_name[:150],
-                    brand=brand,
-                    model=model,
-                    category=category,
-                    purchaseDate=purchase_date,
-                    price=item_price,
-                    quantity=1,
-                    seller=seller,
-                    serialNumber=serial_no,
-                    imei=imei,
-                    warrantyInfo=warranty_info,
-                    confidence=round(confidence, 2),
-                    confidenceLevel=conf_level,
-                    uncertainFields=uncertain_fields
-                ))
-
-        # Fallback: if no multi-item lines detected, create single candidate from overall document
-        if not candidate_items:
-            brand = cls.detect_brand(normalized)
-            category = cls.infer_category(normalized)
-            fallback_name = f"{brand or 'Purchased Item'} ({category})" if (brand or category != 'Other') else "Receipt Purchase Item"
-            
-            uncertain_fields = []
-            confidence = 0.65
-            if not total_amount:
-                uncertain_fields.append("price")
-                confidence -= 0.2
-            if not dates:
-                uncertain_fields.append("purchaseDate")
-                confidence -= 0.15
-            if not brand:
-                uncertain_fields.append("brand")
-                uncertain_fields.append("name")
-                confidence -= 0.15
-
-            confidence = max(0.1, min(1.0, confidence))
-            conf_level = "high" if confidence >= 0.8 else ("medium" if confidence >= 0.5 else "low")
-
-            candidate_items.append(OCRExtractedItem(
-                name=fallback_name,
-                brand=brand,
-                model=None,
-                category=category,
-                purchaseDate=purchase_date,
-                price=total_amount,
-                quantity=1,
-                seller=seller,
-                serialNumber=serial_no,
-                imei=imei,
-                warrantyInfo=warranty_info,
-                confidence=round(confidence, 2),
-                confidenceLevel=conf_level,
-                uncertainFields=uncertain_fields
-            ))
-
         meta = {
             "seller": seller,
             "invoiceNumber": invoice_no,
             "invoiceDate": purchase_date,
             "totalAmount": total_amount,
+            "serialNumber": serial_no,
+            "imei": imei,
+            "warrantyInfo": warranty_info,
             "rawText": normalized
         }
+
+        # Delegate structured candidate item extraction to modular extraction pipeline
+        candidate_items = extraction_manager.extract(normalized, meta)
+
         return candidate_items, meta
 
 

@@ -153,3 +153,44 @@ def test_ocr_engine_with_synthetic_image():
     assert len(extracted_text) > 0
     items, meta = ReceiptParser.parse_receipt(extracted_text)
     assert len(items) >= 1
+
+
+def test_exact_multi_product_example():
+    """
+    Tests specific user example:
+    Samsung TV
+    LG Refrigerator
+    Sony Headphones
+    Must produce three separate product candidates.
+    """
+    sample_ocr = """
+    RELIANCE DIGITAL INVOICE
+    Date: 2024-09-01
+    Sold By: Reliance Digital
+
+    Samsung TV UA55DU8000
+    LG Refrigerator GL-S292RDSX
+    Sony Headphones WH-1000XM5
+
+    Total: 109,990.00
+    """
+    items, meta = ReceiptParser.parse_receipt(sample_ocr)
+    assert len(items) == 3
+
+    # Product 1: Samsung TV
+    tv = items[0]
+    assert tv.brand == "Samsung"
+    assert tv.category == "TV"
+    assert "UA55DU8000" in (tv.model or tv.name)
+
+    # Product 2: LG Refrigerator
+    fridge = items[1]
+    assert fridge.brand == "LG"
+    assert fridge.category == "Refrigerator"
+    assert "GL-S292RDSX" in (fridge.model or fridge.name)
+
+    # Product 3: Sony Headphones
+    headphones = items[2]
+    assert headphones.brand == "Sony"
+    assert headphones.category == "Audio"
+    assert "WH-1000XM5" in (headphones.model or headphones.name)
