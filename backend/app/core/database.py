@@ -106,6 +106,15 @@ class DatabaseManager:
         """
         return self.db
 
+    def get_collection(self, collection_name: str):
+        """
+        Returns a MongoDB collection from the active database.
+        """
+        if self.db is not None:
+            return self.db[collection_name]
+        return None
+
+
 
 # Global singleton instance
 db_manager = DatabaseManager()

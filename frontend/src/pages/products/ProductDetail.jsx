@@ -39,7 +39,8 @@ import {
   Building,
   Activity,
   TrendingUp,
-  Bot
+  Bot,
+  FileSignature
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -55,6 +56,7 @@ import ProductLifecycleTimeline from '../../components/timeline/ProductLifecycle
 import ProductLifeScoreCard from '../../components/products/ProductLifeScoreCard';
 import ProductAIChatWidget from '../../components/ai/ProductAIChatWidget';
 import WarrantyIntelligenceCard from '../../components/warranty/WarrantyIntelligenceCard';
+import WarrantyClaimAssistantModal from '../../components/claim/WarrantyClaimAssistantModal';
 import { productsApi, documentsApi, warrantiesApi, maintenanceApi } from '../../services/api';
 import './ProductDetail.css';
 
@@ -105,6 +107,7 @@ export default function ProductDetail() {
   const [selectedWarranty, setSelectedWarranty] = useState(null);
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
   const [selectedMaintenance, setSelectedMaintenance] = useState(null);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProductData = useCallback(async () => {
@@ -261,9 +264,16 @@ export default function ProductDetail() {
       title={product.name}
       subtitle={`${product.brand} • Model: ${product.model}`}
       actions={
-        <div className="product-detail-actions">
+        <div className="product-header-actions">
           <Button
             variant="primary"
+            icon={FileSignature}
+            onClick={() => setIsClaimModalOpen(true)}
+          >
+            Prepare Warranty Claim
+          </Button>
+          <Button
+            variant="outline"
             icon={Bot}
             onClick={() => setActiveTab('ai')}
           >
@@ -1040,6 +1050,14 @@ export default function ProductDetail() {
         onSuccess={() => {
           fetchProductData();
         }}
+      />
+
+      {/* Prepare Warranty Claim Assistant Modal */}
+      <WarrantyClaimAssistantModal
+        isOpen={isClaimModalOpen}
+        onClose={() => setIsClaimModalOpen(false)}
+        product={product}
+        warranties={warranties}
       />
     </PageContainer>
   );

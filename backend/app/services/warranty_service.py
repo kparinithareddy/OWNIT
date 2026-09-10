@@ -336,6 +336,10 @@ class WarrantyService:
         """Convenience method to list all warranty components for a single product."""
         return await self.get_user_warranties(user_id=user_id, product_id=product_id)
 
+    async def get_warranties_by_product(self, product_id: str, user_id: str) -> List[WarrantyResponse]:
+        """Retrieves all warranty components for a specific product."""
+        return await self.get_user_warranties(user_id=user_id, product_id=product_id)
+
     async def get_warranty_summary(self, user_id: str) -> WarrantySummaryResponse:
         """Computes aggregate warranty status counts for dashboard."""
         all_warranties = await self.get_user_warranties(user_id=user_id)

@@ -202,6 +202,12 @@ export const warrantyIntelligenceApi = {
     request(`/warranty-intelligence/quick-check/${productId}?questionType=${questionType}`, { method: 'GET' })
 };
 
+// Warranty Claim Assistant API methods
+export const claimAssistantApi = {
+  prepare: (payload) => request('/claim-assistant/prepare', { method: 'POST', body: payload })
+};
+
+
 
 
 

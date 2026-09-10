@@ -19,11 +19,13 @@ import {
   RotateCcw,
   Check,
   UploadCloud,
-  FileQuestion
+  FileQuestion,
+  FileSignature
 } from 'lucide-react';
 import Card from '../common/Card';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
+import WarrantyClaimAssistantModal from '../claim/WarrantyClaimAssistantModal';
 import { warrantyIntelligenceApi } from '../../services/api';
 import './WarrantyIntelligenceCard.css';
 
@@ -51,6 +53,7 @@ export default function WarrantyIntelligenceCard({ product, warranties = [], doc
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [showPipeline, setShowPipeline] = useState(true);
+  const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
 
   // Run initial active status check on mount
   useEffect(() => {
@@ -327,6 +330,16 @@ export default function WarrantyIntelligenceCard({ product, warranties = [], doc
                   <span className="contact-val">{result.supportContact}</span>
                 </div>
               )}
+
+              <div style={{ marginTop: '8px' }}>
+                <Button
+                  variant="primary"
+                  icon={FileSignature}
+                  onClick={() => setIsClaimModalOpen(true)}
+                >
+                  Prepare Warranty Claim Dossier
+                </Button>
+              </div>
             </div>
           )}
 
@@ -436,6 +449,15 @@ export default function WarrantyIntelligenceCard({ product, warranties = [], doc
           )}
         </div>
       )}
+
+      {/* Warranty Claim Assistant Modal */}
+      <WarrantyClaimAssistantModal
+        isOpen={isClaimModalOpen}
+        onClose={() => setIsClaimModalOpen(false)}
+        product={product}
+        warranties={warranties}
+        initialProblemDescription={result?.issueDescription || issueQuery}
+      />
     </Card>
   );
 }

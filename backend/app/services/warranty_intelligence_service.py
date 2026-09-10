@@ -86,10 +86,6 @@ class WarrantyIntelligenceService:
     coverage assessments across 4 likelihood levels without guaranteeing claim outcomes.
     """
 
-    @property
-    def documents_collection(self):
-        return db_manager.get_collection("documents")
-
     async def analyze_issue_or_question(
         self,
         user_id: str,
@@ -102,8 +98,12 @@ class WarrantyIntelligenceService:
         warranties = await warranty_service.get_warranties_by_product(request.productId, user_id)
 
         # Retrieve user uploaded documents
-        doc_cursor = self.documents_collection.find({"productId": request.productId, "userId": user_id})
-        documents = [d async for d in doc_cursor]
+        documents = []
+        try:
+            doc_objs = await document_service.get_documents(user_id=user_id, product_id=request.productId)
+            documents = [d.model_dump() for d in doc_objs]
+        except Exception as e:
+            logger.warning("Could not fetch documents for warranty intelligence: %s", e)
 
         # Retrieve hierarchical verified sources
         sources = retrieval_service.retrieve_hierarchical_sources(
