@@ -130,3 +130,34 @@ def test_context_builder_rich_synthesis_and_anti_hallucination_rules():
     assert any("Purchase Bill" in t for t in source_titles)
     assert any("Samsung Official Support" in t for t in source_titles)
     assert any("General Consumer Electronics" in t for t in source_titles)
+
+
+def test_format_chat_message_with_source_references():
+    from app.services.chat_service import format_chat_message
+    from bson import ObjectId
+
+    doc = {
+        "_id": ObjectId(),
+        "role": "assistant",
+        "content": "According to your warranty card, panel replacement is covered.",
+        "sources": ["Samsung India Official Warranty Policy"],
+        "sourceReferences": [
+            {
+                "title": "Samsung Official Support (Samsung Official Support & Warranty Portal)",
+                "sourceType": "official_manufacturer",
+                "domain": "samsung.com",
+                "url": "https://www.samsung.com/in/support/warranty/",
+                "details": "Standard OEM terms",
+                "verified": True
+            }
+        ],
+        "createdAt": datetime.now(timezone.utc)
+    }
+
+    msg = format_chat_message(doc)
+    assert msg.role == "assistant"
+    assert len(msg.sourceReferences) == 1
+    assert msg.sourceReferences[0].domain == "samsung.com"
+    assert msg.sourceReferences[0].sourceType == "official_manufacturer"
+    assert msg.sourceReferences[0].url == "https://www.samsung.com/in/support/warranty/"
+

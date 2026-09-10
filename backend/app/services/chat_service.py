@@ -181,7 +181,9 @@ class ChatService:
         )
 
         # If Ollama is offline or errored, generate friendly graceful response
-        if not ai_res.success or not ai_res.response:
+        if ai_res.success and ai_res.response:
+            ai_reply_text = ai_res.response
+        else:
             ai_reply_text = (
                 f"I am currently operating in offline mode because the local Ollama service could not be reached. "
                 f"However, based on your recorded database records for **{product.name}**:\n"
@@ -191,7 +193,6 @@ class ChatService:
                 f"• **Maintenance**: {len(maintenance_records)} record(s) logged.\n\n"
                 f"To enable complete local conversational AI, please ensure Ollama is running (`ollama serve`)."
             )
-            cited_sources = ["Database Records (Offline Fallback)"]
         # Identify which sources are relevant to the query based on hierarchy
         cited_sources_str = []
         cited_source_refs = []
