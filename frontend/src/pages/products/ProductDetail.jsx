@@ -7,10 +7,12 @@ import {
   Store,
   Hash,
   FileText,
-  Bot,
+  UploadCloud,
+  Eye,
+  Download,
+  Trash2,
   ArrowLeft,
   Edit2,
-  Trash2,
   Clock,
   Layers,
   Smartphone,
@@ -20,8 +22,7 @@ import {
   Volume2,
   Camera,
   Gamepad2,
-  Sparkles,
-  Info
+  Sparkles
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -30,7 +31,8 @@ import Badge from '../../components/common/Badge';
 import LoadingState from '../../components/common/LoadingState';
 import ErrorState from '../../components/common/ErrorState';
 import ProductFormModal from '../../components/products/ProductFormModal';
-import { productsApi } from '../../services/api';
+import DocumentUploadModal from '../../components/documents/DocumentUploadModal';
+import { productsApi, documentsApi } from '../../services/api';
 import './ProductDetail.css';
 
 function getCategoryIcon(cat) {
@@ -49,25 +51,39 @@ function getCategoryIcon(cat) {
   }
 }
 
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [product, setProduct] = useState(null);
+  const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUploadDocModalOpen, setIsUploadDocModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchProduct = useCallback(async () => {
+  const fetchProductAndDocs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await productsApi.get(id);
-      setProduct(data);
+      const [prodData, docsData] = await Promise.all([
+        productsApi.get(id),
+        documentsApi.list({ productId: id })
+      ]);
+      setProduct(prodData);
+      setDocuments(docsData);
     } catch (err) {
-      console.error('Error fetching product:', err);
+      console.error('Error fetching product & docs:', err);
       setError(err.message || 'Product not found or access denied.');
     } finally {
       setLoading(false);
@@ -75,12 +91,12 @@ export default function ProductDetail() {
   }, [id]);
 
   useEffect(() => {
-    fetchProduct();
-  }, [fetchProduct]);
+    fetchProductAndDocs();
+  }, [fetchProductAndDocs]);
 
-  const handleDelete = async () => {
+  const handleDeleteProduct = async () => {
     if (!product) return;
-    if (!window.confirm(`Are you sure you want to permanently delete "${product.name}"?`)) {
+    if (!window.confirm(`Are you sure you want to permanently delete "${product.name}"? This will also remove associated documents.`)) {
       return;
     }
 
@@ -94,10 +110,43 @@ export default function ProductDetail() {
     }
   };
 
+  const handleViewDoc = async (doc) => {
+    try {
+      const objectUrl = await documentsApi.viewFile(doc.id, false);
+      window.open(objectUrl, '_blank');
+    } catch (err) {
+      alert(`Could not view file: ${err.message}`);
+    }
+  };
+
+  const handleDownloadDoc = async (doc) => {
+    try {
+      const objectUrl = await documentsApi.viewFile(doc.id, true);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = doc.originalFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      alert(`Could not download file: ${err.message}`);
+    }
+  };
+
+  const handleDeleteDoc = async (docId, docName) => {
+    if (!window.confirm(`Delete document "${docName}"?`)) return;
+    try {
+      await documentsApi.delete(docId);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    } catch (err) {
+      alert(`Failed to delete document: ${err.message}`);
+    }
+  };
+
   if (loading) {
     return (
       <PageContainer>
-        <LoadingState message="Loading product details..." description="Fetching asset information from MongoDB..." />
+        <LoadingState message="Loading product details..." description="Fetching asset and document information..." />
       </PageContainer>
     );
   }
@@ -130,16 +179,23 @@ export default function ProductDetail() {
         <div className="product-detail-actions">
           <Button
             variant="outline"
+            icon={UploadCloud}
+            onClick={() => setIsUploadDocModalOpen(true)}
+          >
+            Attach Document
+          </Button>
+          <Button
+            variant="outline"
             icon={Edit2}
             onClick={() => setIsEditModalOpen(true)}
           >
-            Edit Product
+            Edit
           </Button>
           <Button
             variant="danger"
             icon={Trash2}
             disabled={isDeleting}
-            onClick={handleDelete}
+            onClick={handleDeleteProduct}
           >
             {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
@@ -225,22 +281,106 @@ export default function ProductDetail() {
         </Card>
       </div>
 
-      {/* Notes & Assistant Teaser */}
-      {product.notes && (
-        <Card title="Notes & Maintenance Specifications">
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: '1.6' }}>
-            {product.notes}
-          </p>
-        </Card>
-      )}
+      {/* Attached Documents Section */}
+      <Card
+        title={`Attached Documents (${documents.length})`}
+        subtitle="Purchase invoices, warranty certificates, and manuals linked to this asset"
+        action={
+          <Button
+            variant="outline"
+            size="sm"
+            icon={UploadCloud}
+            onClick={() => setIsUploadDocModalOpen(true)}
+          >
+            Attach Document
+          </Button>
+        }
+      >
+        {documents.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+            <FileText size={32} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
+            <h4 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-main)' }}>
+              No documents attached to this product
+            </h4>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
+              Upload your purchase bill or warranty card to keep safe records for warranty claims.
+            </p>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={UploadCloud}
+              onClick={() => setIsUploadDocModalOpen(true)}
+            >
+              Upload Document Now
+            </Button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-surface-secondary)',
+                  border: '1px solid var(--border-light)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '1.5rem' }}>
+                    {doc.mimeType === 'application/pdf' ? '📄' : '🖼️'}
+                  </span>
+                  <div>
+                    <h5 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                      {doc.originalFilename}
+                    </h5>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {doc.documentType} &bull; {formatFileSize(doc.fileSize)} &bull; {new Date(doc.uploadedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
 
-      {/* Edit Modal */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Button variant="ghost" size="sm" icon={Eye} onClick={() => handleViewDoc(doc)}>
+                    View
+                  </Button>
+                  <Button variant="ghost" size="sm" icon={Download} onClick={() => handleDownloadDoc(doc)}>
+                    Download
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={Trash2}
+                    style={{ color: 'var(--danger)' }}
+                    onClick={() => handleDeleteDoc(doc.id, doc.originalFilename)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Edit Product Modal */}
       <ProductFormModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         initialProduct={product}
         onSuccess={(updated) => {
           setProduct(updated);
+        }}
+      />
+
+      {/* Upload Document Modal */}
+      <DocumentUploadModal
+        isOpen={isUploadDocModalOpen}
+        onClose={() => setIsUploadDocModalOpen(false)}
+        preselectedProductId={product.id}
+        onSuccess={() => {
+          fetchProductAndDocs();
         }}
       />
     </PageContainer>

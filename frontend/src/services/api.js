@@ -18,9 +18,13 @@ export class ApiError extends Error {
 export async function request(endpoint, options = {}) {
   const url = endpoint.startsWith('http') ? endpoint : `${API_V1_URL}${endpoint}`;
   const headers = {
-    'Content-Type': 'application/json',
     ...(options.headers || {})
   };
+
+  const isFormData = options.body instanceof FormData;
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   // Attach JWT Bearer token if available
   const token = localStorage.getItem('ownit_token');
@@ -28,14 +32,16 @@ export async function request(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  let body = options.body;
+  if (!isFormData && body && typeof body === 'object') {
+    body = JSON.stringify(body);
+  }
+
   const config = {
     ...options,
-    headers
+    headers,
+    body
   };
-
-  if (config.body && typeof config.body === 'object') {
-    config.body = JSON.stringify(config.body);
-  }
 
   try {
     const response = await fetch(url, config);
@@ -96,4 +102,33 @@ export const productsApi = {
   create: (payload) => request('/products/', { method: 'POST', body: payload }),
   update: (id, payload) => request(`/products/${id}`, { method: 'PUT', body: payload }),
   delete: (id) => request(`/products/${id}`, { method: 'DELETE' })
+};
+
+// Document Management API methods
+export const documentsApi = {
+  list: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.productId && params.productId !== 'All') query.append('productId', params.productId);
+    if (params.documentType && params.documentType !== 'All') query.append('documentType', params.documentType);
+    const queryStr = query.toString() ? `?${query.toString()}` : '';
+    return request(`/documents/${queryStr}`, { method: 'GET' });
+  },
+  get: (id) => request(`/documents/${id}`, { method: 'GET' }),
+  upload: (formData) => request('/documents/upload', { method: 'POST', body: formData }),
+  delete: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
+  viewFile: async (id, download = false) => {
+    const token = localStorage.getItem('ownit_token');
+    const url = `${API_V1_URL}/documents/${id}/download?download=${download}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+    if (!response.ok) {
+      throw new ApiError('Failed to retrieve document file', response.status);
+    }
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    return objectUrl;
+  }
 };

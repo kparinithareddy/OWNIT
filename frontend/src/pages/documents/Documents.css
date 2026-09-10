@@ -40,11 +40,21 @@
 .upload-dropzone-subtitle {
   font-size: 0.8125rem;
   color: var(--text-muted);
-  max-width: 460px;
+  max-width: 480px;
   margin-top: 4px;
 }
 
-.doc-search-bar {
+.doc-search-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+}
+
+.doc-search-box {
   position: relative;
   width: 100%;
 }
@@ -55,6 +65,7 @@
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-muted);
+  pointer-events: none;
 }
 
 .doc-search-input {
@@ -72,6 +83,64 @@
   box-shadow: 0 0 0 3px var(--primary-light);
 }
 
+.doc-filter-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.doc-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.doc-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.doc-pills-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.doc-filter-pill {
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-surface-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doc-filter-pill.pill-active {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.doc-select {
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  font-size: 0.8125rem;
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  outline: none;
+}
+
 /* Documents Grid */
 .documents-grid {
   display: grid;
@@ -83,6 +152,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  height: 100%;
 }
 
 .doc-card-top {
@@ -93,23 +163,16 @@
 }
 
 .doc-thumbnail-emoji {
-  font-size: 2rem;
-}
-
-.doc-type-badge {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 1.75rem;
 }
 
 .doc-card-title {
   font-size: 0.9375rem;
   font-weight: 700;
   color: var(--text-main);
-  margin: 4px 0;
-  line-height: 1.3;
+  margin-bottom: 4px;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .doc-product-link {
@@ -133,5 +196,17 @@
 
 .doc-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.doc-delete-btn:hover {
+  color: var(--danger) !important;
+}
+
+@media (max-width: 768px) {
+  .doc-filter-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
