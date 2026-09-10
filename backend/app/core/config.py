@@ -53,10 +53,12 @@ class Settings(BaseSettings):
         ".gif"
     ]
 
-    # OCR & AI Settings
+    # OCR & AI Settings (Local services - Ollama LLM & Tesseract OCR)
     TESSERACT_CMD_PATH: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2"
+    OLLAMA_TIMEOUT_SECONDS: float = 30.0
+
 
     model_config = SettingsConfigDict(
         env_file=".env",

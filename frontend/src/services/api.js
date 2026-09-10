@@ -186,4 +186,11 @@ export const maintenanceApi = {
   delete: (id) => request(`/maintenance/${id}`, { method: 'DELETE' })
 };
 
+// Local AI (Ollama) API methods
+export const aiApi = {
+  getStatus: () => request('/ai/status', { method: 'GET' }),
+  testPrompt: (payload) => request('/ai/test', { method: 'POST', body: payload })
+};
+
+
 
