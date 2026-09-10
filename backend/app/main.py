@@ -8,6 +8,7 @@ from app.core.database import db_manager
 from app.core.handlers import register_exception_handlers
 from app.api.v1.router import api_v1_router
 from app.services.user_service import user_service
+from app.services.product_service import product_service
 
 # Configure basic logging
 logging.basicConfig(
@@ -22,7 +23,7 @@ async def lifespan(app: FastAPI):
     """
     Manages the application lifecycle:
     - Connects to MongoDB on startup
-    - Ensures database indexes (e.g. unique username)
+    - Ensures database indexes (users, products)
     - Gracefully disconnects MongoDB on shutdown
     """
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}...")
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
     # 2. Ensure indexes if database is reachable
     if is_connected:
         await user_service.ensure_indexes()
+        await product_service.ensure_indexes()
 
     yield
 
@@ -78,7 +80,8 @@ def create_app() -> FastAPI:
             "version": settings.VERSION,
             "docs": "/docs",
             "health_v1": f"{settings.API_V1_PREFIX}/health",
-            "auth_v1": f"{settings.API_V1_PREFIX}/auth"
+            "auth_v1": f"{settings.API_V1_PREFIX}/auth",
+            "products_v1": f"{settings.API_V1_PREFIX}/products"
         }
 
     return app

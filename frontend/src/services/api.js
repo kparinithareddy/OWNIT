@@ -82,3 +82,18 @@ export const authApi = {
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
   getMe: () => request('/auth/me', { method: 'GET' })
 };
+
+// Product Management API methods
+export const productsApi = {
+  list: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.category && params.category !== 'All') query.append('category', params.category);
+    if (params.search && params.search.trim()) query.append('search', params.search.trim());
+    const queryStr = query.toString() ? `?${query.toString()}` : '';
+    return request(`/products/${queryStr}`, { method: 'GET' });
+  },
+  get: (id) => request(`/products/${id}`, { method: 'GET' }),
+  create: (payload) => request('/products/', { method: 'POST', body: payload }),
+  update: (id, payload) => request(`/products/${id}`, { method: 'PUT', body: payload }),
+  delete: (id) => request(`/products/${id}`, { method: 'DELETE' })
+};

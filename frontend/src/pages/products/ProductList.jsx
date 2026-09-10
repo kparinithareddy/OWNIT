@@ -1,70 +1,145 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package,
   Plus,
   Search,
-  Filter,
-  ShieldCheck,
   Calendar,
   DollarSign,
-  ArrowUpRight
+  Edit2,
+  Trash2,
+  Eye,
+  Store,
+  Hash,
+  Smartphone,
+  Laptop,
+  Tv,
+  Refrigerator,
+  Volume2,
+  Camera,
+  Gamepad2,
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import LoadingState from '../../components/common/LoadingState';
 import EmptyState from '../../components/common/EmptyState';
-import Modal from '../../components/common/Modal';
-import Input, { Select } from '../../components/common/Input';
-import { mockProducts } from '../../data/mockData';
+import ErrorState from '../../components/common/ErrorState';
+import ProductFormModal from '../../components/products/ProductFormModal';
+import { PRODUCT_CATEGORIES } from '../../data/categories';
+import { productsApi } from '../../services/api';
 import './ProductList.css';
+
+// Helper to pick category icon
+function getCategoryIcon(cat) {
+  switch (cat) {
+    case 'Mobile': return Smartphone;
+    case 'Laptop': return Laptop;
+    case 'TV': return Tv;
+    case 'Refrigerator': return Refrigerator;
+    case 'Audio': return Volume2;
+    case 'Camera': return Camera;
+    case 'Gaming': return Gamepad2;
+    case 'Home Appliance':
+    case 'Air Conditioner':
+    case 'Washing Machine': return Sparkles;
+    default: return Package;
+  }
+}
 
 export default function ProductList() {
   const navigate = useNavigate();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const filteredProducts = mockProducts.filter((product) => {
-    const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.model.toLowerCase().includes(searchTerm.toLowerCase());
+  // Modals state
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [deletingProductId, setDeletingProductId] = useState(null);
 
-    const matchesCategory =
-      selectedCategory === 'All' || product.category === selectedCategory;
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await productsApi.list({
+        category: selectedCategory,
+        search: searchTerm
+      });
+      setProducts(data);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setError(err.message || 'Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCategory, searchTerm]);
 
-    const matchesStatus =
-      selectedStatus === 'All' || product.warrantyStatus === selectedStatus;
+  useEffect(() => {
+    // Debounce search/filter fetch
+    const timer = setTimeout(() => {
+      fetchProducts();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [fetchProducts]);
 
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  const handleOpenAdd = () => {
+    setEditingProduct(null);
+    setIsFormModalOpen(true);
+  };
 
-  const categories = ['All', 'Electronics', 'Audio', 'Home Appliances'];
+  const handleOpenEdit = (e, product) => {
+    e.stopPropagation();
+    setEditingProduct(product);
+    setIsFormModalOpen(true);
+  };
+
+  const handleDelete = async (e, productId, productName) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to permanently delete "${productName}"?`)) {
+      return;
+    }
+
+    try {
+      setDeletingProductId(productId);
+      await productsApi.delete(productId);
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+    } catch (err) {
+      alert(`Could not delete product: ${err.message}`);
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
+
+  const categories = ['All', ...PRODUCT_CATEGORIES];
 
   return (
     <PageContainer
-      title="Products & Assets"
-      subtitle="View, manage, and track all your registered physical purchases and their warranties."
+      title="My Products & Assets"
+      subtitle="Catalog, manage, and track all your physical items securely."
       actions={
         <Button
           variant="primary"
           icon={Plus}
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenAdd}
         >
           Add Product
         </Button>
       }
     >
-      {/* Search & Filter Bar */}
+      {/* Search & Category Filter Toolbar */}
       <div className="product-filter-bar">
         <div className="product-search-box">
           <Search size={16} className="product-search-icon" />
           <input
             type="text"
-            placeholder="Search by product name, brand, or model..."
+            placeholder="Search by product name, brand, model, serial #, or seller..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="product-search-input"
@@ -73,7 +148,7 @@ export default function ProductList() {
 
         <div className="product-filters">
           <div className="filter-group">
-            <span className="filter-label">Category:</span>
+            <span className="filter-label"><Layers size={14} /> Category:</span>
             <div className="filter-pills">
               {categories.map((cat) => (
                 <button
@@ -86,113 +161,124 @@ export default function ProductList() {
               ))}
             </div>
           </div>
-
-          <div className="filter-group">
-            <span className="filter-label">Status:</span>
-            <select
-              className="filter-select"
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-            >
-              <option value="All">All Statuses</option>
-              <option value="active">Active Warranty</option>
-              <option value="expiring">Expiring Soon</option>
-              <option value="expired">Expired</option>
-            </select>
-          </div>
         </div>
       </div>
 
-      {/* Product Cards Grid */}
-      {filteredProducts.length > 0 ? (
-        <div className="product-grid">
-          {filteredProducts.map((product) => (
-            <Card
-              key={product.id}
-              hoverable
-              className="product-card"
-              onClick={() => navigate(`/products/${product.id}`)}
-            >
-              <div className="product-card-top">
-                <div className="product-avatar">
-                  <Package size={24} />
-                </div>
-                <Badge
-                  variant={
-                    product.warrantyStatus === 'active'
-                      ? 'active'
-                      : product.warrantyStatus === 'expiring'
-                      ? 'warning'
-                      : 'danger'
-                  }
-                  dot
-                >
-                  {product.warrantyStatus === 'active'
-                    ? 'Active Warranty'
-                    : product.warrantyStatus === 'expiring'
-                    ? 'Expiring Soon'
-                    : 'Expired'}
-                </Badge>
-              </div>
-
-              <div className="product-card-info">
-                <span className="product-brand-tag">{product.brand}</span>
-                <h3 className="product-title">{product.name}</h3>
-                <p className="product-model">{product.model}</p>
-              </div>
-
-              <div className="product-card-meta">
-                <div className="product-meta-item">
-                  <Calendar size={14} />
-                  <span>Purchased: {product.purchaseDate}</span>
-                </div>
-                <div className="product-meta-item">
-                  <ShieldCheck size={14} />
-                  <span>Warranty: {product.warrantyExpiry}</span>
-                </div>
-              </div>
-
-              <div className="product-card-footer">
-                <div className="product-price">{product.purchasePrice}</div>
-                <div className="product-life-score" title="Product Life Score">
-                  <span className="life-score-label">Life Score:</span>
-                  <span className="life-score-val">{product.lifeScore}%</span>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      ) : (
+      {/* Main Content Area: Loading / Error / Empty / Grid */}
+      {loading && products.length === 0 ? (
+        <LoadingState message="Loading your products..." description="Connecting to MongoDB..." />
+      ) : error ? (
+        <ErrorState
+          title="Could not load products"
+          description={error}
+          onRetry={fetchProducts}
+        />
+      ) : products.length === 0 ? (
         <EmptyState
-          title="No products match your search"
-          description="Try adjusting your search filters or add a new product."
-          actionLabel="Clear Filters"
+          title={searchTerm || selectedCategory !== 'All' ? 'No matching products found' : 'No products added yet'}
+          description={
+            searchTerm || selectedCategory !== 'All'
+              ? 'Try clearing your search terms or selecting a different category filter.'
+              : 'Get started by adding your first laptop, smartphone, or household appliance!'
+          }
+          actionLabel={searchTerm || selectedCategory !== 'All' ? 'Clear Filters' : 'Add First Product'}
           onAction={() => {
-            setSearchTerm('');
-            setSelectedCategory('All');
-            setSelectedStatus('All');
+            if (searchTerm || selectedCategory !== 'All') {
+              setSearchTerm('');
+              setSelectedCategory('All');
+            } else {
+              handleOpenAdd();
+            }
           }}
         />
+      ) : (
+        <div className="product-grid">
+          {products.map((product) => {
+            const IconComponent = getCategoryIcon(product.category);
+            return (
+              <Card
+                key={product.id}
+                hoverable
+                className="product-card"
+                onClick={() => navigate(`/products/${product.id}`)}
+              >
+                <div className="product-card-top">
+                  <div className="product-avatar">
+                    <IconComponent size={22} />
+                  </div>
+                  <Badge variant="info" size="sm">
+                    {product.category}
+                  </Badge>
+                </div>
+
+                <div className="product-card-info">
+                  <span className="product-brand-tag">{product.brand}</span>
+                  <h3 className="product-title">{product.name}</h3>
+                  <p className="product-model">{product.model}</p>
+                </div>
+
+                <div className="product-card-meta">
+                  <div className="product-meta-item">
+                    <Calendar size={13} />
+                    <span>Purchased: {product.purchaseDate}</span>
+                  </div>
+                  {product.seller && (
+                    <div className="product-meta-item">
+                      <Store size={13} />
+                      <span>Store: {product.seller}</span>
+                    </div>
+                  )}
+                  {product.serialNumber && (
+                    <div className="product-meta-item">
+                      <Hash size={13} />
+                      <span>Serial: {product.serialNumber}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="product-card-footer">
+                  <div className="product-price">
+                    ₹{product.price.toLocaleString('en-IN')}
+                    {product.quantity > 1 && (
+                      <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-muted)', marginLeft: '4px' }}>
+                        (Qty: {product.quantity})
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="product-card-actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="card-icon-action-btn"
+                      title="Edit Product"
+                      onClick={(e) => handleOpenEdit(e, product)}
+                    >
+                      <Edit2 size={15} />
+                    </button>
+                    <button
+                      className="card-icon-action-btn action-danger"
+                      title="Delete Product"
+                      disabled={deletingProductId === product.id}
+                      onClick={(e) => handleDelete(e, product.id, product.name)}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
 
-      {/* Add Product Modal Placeholder */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add Product to Catalog"
-        subtitle="Enter product invoice details manually"
-      >
-        <form onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); }}>
-          <Input label="Product Name" placeholder="e.g. Sony WH-1000XM5" required />
-          <Input label="Brand" placeholder="e.g. Sony" required />
-          <Input label="Purchase Date" type="date" required />
-          <Input label="Purchase Price" placeholder="₹24,990" />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" type="submit">Save Product</Button>
-          </div>
-        </form>
-      </Modal>
+      {/* Add / Edit Product Modal */}
+      <ProductFormModal
+        isOpen={isFormModalOpen}
+        onClose={() => setIsFormModalOpen(false)}
+        initialProduct={editingProduct}
+        onSuccess={() => {
+          fetchProducts();
+        }}
+      />
     </PageContainer>
   );
 }

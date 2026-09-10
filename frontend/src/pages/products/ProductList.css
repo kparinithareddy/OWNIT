@@ -48,9 +48,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .filter-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -78,16 +82,6 @@
   background-color: var(--primary);
   color: #ffffff;
   border-color: var(--primary);
-}
-
-.filter-select {
-  padding: 6px 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-medium);
-  font-size: 0.8125rem;
-  background-color: var(--bg-surface);
-  color: var(--text-main);
-  outline: none;
 }
 
 /* Grid */
@@ -135,6 +129,7 @@
   font-weight: 700;
   color: var(--text-main);
   margin-top: 2px;
+  line-height: 1.25;
 }
 
 .product-model {
@@ -170,24 +165,39 @@
 }
 
 .product-price {
-  font-size: 1rem;
+  font-size: 1.0625rem;
   font-weight: 700;
   color: var(--text-main);
 }
 
-.product-life-score {
+.product-card-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-.life-score-label {
-  font-size: 0.75rem;
+.card-icon-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background-color: var(--bg-surface);
   color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.life-score-val {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--success);
+.card-icon-action-btn:hover {
+  background-color: var(--bg-surface-secondary);
+  color: var(--text-main);
+  border-color: var(--border-medium);
+}
+
+.card-icon-action-btn.action-danger:hover {
+  background-color: var(--danger-light);
+  color: var(--danger);
+  border-color: var(--danger-border);
 }

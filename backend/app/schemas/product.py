@@ -1,0 +1,127 @@
+from pydantic import BaseModel, Field, field_validator
+from datetime import datetime
+from typing import Optional, List, Literal
+
+ProductCategoryType = Literal[
+    "Mobile",
+    "Laptop",
+    "TV",
+    "Refrigerator",
+    "Washing Machine",
+    "Air Conditioner",
+    "Audio",
+    "Camera",
+    "Gaming",
+    "Home Appliance",
+    "Other"
+]
+
+VALID_CATEGORIES = [
+    "Mobile",
+    "Laptop",
+    "TV",
+    "Refrigerator",
+    "Washing Machine",
+    "Air Conditioner",
+    "Audio",
+    "Camera",
+    "Gaming",
+    "Home Appliance",
+    "Other"
+]
+
+
+class ProductCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120, description="Product name (e.g. MacBook Pro 14)")
+    brand: str = Field(..., min_length=1, max_length=100, description="Brand / Manufacturer (e.g. Apple)")
+    model: str = Field(..., min_length=1, max_length=100, description="Model name or number")
+    category: ProductCategoryType = Field(default="Other", description="Product category")
+    purchaseDate: str = Field(..., description="Date of purchase (YYYY-MM-DD)")
+    price: float = Field(..., ge=0, description="Purchase price in currency value")
+    quantity: int = Field(default=1, ge=1, description="Quantity purchased")
+    seller: Optional[str] = Field(default=None, max_length=120, description="Store or vendor name")
+    serialNumber: Optional[str] = Field(default=None, max_length=100, description="Unique serial number")
+    imei: Optional[str] = Field(default=None, max_length=50, description="IMEI number (for mobile/cellular devices)")
+    image: Optional[str] = Field(default=None, description="Image URL or placeholder identifier")
+    notes: Optional[str] = Field(default=None, max_length=1000, description="Additional notes or specifications")
+
+    @field_validator("name", "brand", "model")
+    @classmethod
+    def strip_whitespace(cls, v: str) -> str:
+        clean = v.strip()
+        if not clean:
+            raise ValueError("Field cannot be blank or empty whitespace")
+        return clean
+
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    brand: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    model: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    category: Optional[ProductCategoryType] = None
+    purchaseDate: Optional[str] = None
+    price: Optional[float] = Field(default=None, ge=0)
+    quantity: Optional[int] = Field(default=None, ge=1)
+    seller: Optional[str] = Field(default=None, max_length=120)
+    serialNumber: Optional[str] = Field(default=None, max_length=100)
+    imei: Optional[str] = Field(default=None, max_length=50)
+    image: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("name", "brand", "model")
+    @classmethod
+    def strip_optional_whitespace(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            clean = v.strip()
+            if not clean:
+                raise ValueError("Field cannot be blank")
+            return clean
+        return v
+
+
+class ProductResponse(BaseModel):
+    id: str = Field(..., description="Unique product identifier")
+    userId: str = Field(..., description="Owner user ID")
+    name: str
+    brand: str
+    model: str
+    category: str
+    purchaseDate: str
+    price: float
+    quantity: int = 1
+    seller: Optional[str] = None
+    serialNumber: Optional[str] = None
+    imei: Optional[str] = None
+    image: Optional[str] = None
+    notes: Optional[str] = None
+    createdAt: datetime
+    updatedAt: datetime
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": "673abc1234567890efabcdef",
+                "userId": "66dbb01234abcd5678ef9012",
+                "name": "Sony WH-1000XM5",
+                "brand": "Sony",
+                "model": "WH-1000XM5 Silver",
+                "category": "Audio",
+                "purchaseDate": "2024-03-15",
+                "price": 26990.0,
+                "quantity": 1,
+                "seller": "Amazon India",
+                "serialNumber": "S01-9482910-B",
+                "imei": None,
+                "image": None,
+                "notes": "Purchased during Great Republic Day Sale",
+                "createdAt": "2026-09-10T11:00:00Z",
+                "updatedAt": "2026-09-10T11:00:00Z"
+            }
+        }
+    }
+
+
+class ProductListResponse(BaseModel):
+    items: List[ProductResponse]
+    total: int
