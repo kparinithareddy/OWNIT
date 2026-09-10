@@ -86,7 +86,8 @@ export async function request(endpoint, options = {}) {
 export const authApi = {
   signup: (payload) => request('/auth/signup', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
-  getMe: () => request('/auth/me', { method: 'GET' })
+  getMe: () => request('/auth/me', { method: 'GET' }),
+  updatePreferences: (payload) => request('/auth/preferences', { method: 'PATCH', body: payload })
 };
 
 // Product Management API methods

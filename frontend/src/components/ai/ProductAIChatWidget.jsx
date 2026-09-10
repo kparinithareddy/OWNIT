@@ -20,6 +20,7 @@ import {
 import Card from '../common/Card';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { aiApi } from '../../services/api';
 import './ProductAIChatWidget.css';
 
@@ -32,15 +33,8 @@ function renderSourceIcon(sourceType) {
   }
 }
 
-
-const DEFAULT_SUGGESTED_PROMPTS = [
-  "What is covered under my warranty?",
-  "How should I clean and maintain this item?",
-  "What are the explicit warranty exclusions?",
-  "Draft a warranty claim message for customer support"
-];
-
 export default function ProductAIChatWidget({ product, warranties = [], documents = [], maintenanceRecords = [] }) {
+  const { t, language } = useLanguage();
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -74,11 +68,17 @@ export default function ProductAIChatWidget({ product, warranties = [], document
         setMessages(res.messages);
       } else {
         // Initial welcome message
+        const welcomeContent = language === 'hi'
+          ? `नमस्ते! मैं **${product.brand} ${product.name}** के लिए आपका OWNIT उत्पाद सहायक हूँ।\n\nमुझे आपके **${warranties.length} वारंटी घटकों**, **${documents.length} संलग्न दस्तावेज़ों** और रखरखाव रिकॉर्ड तक त्वरित पहुंच प्राप्त है।\n\nवारंटी कवरेज, सफाई, दावा प्रक्रिया या किसी भी समस्या के बारे में मुझसे पूछें!`
+          : language === 'te'
+          ? `నమస్తే! నేను **${product.brand} ${product.name}** కోసం మీ OWNIT ఉత్పత్తి సహాయకుడిని.\n\nనాకు మీ **${warranties.length} వారంటీ కాంపోనెంట్లు**, **${documents.length} పత్రాలు** మరియు నిర్వహణ రికార్డులకు యాక్సెస్ ఉంది.\n\nవారంటీ కవరేజ్, శుభ్రపరచడం, క్లెయిమ్ విధానం గురించి నన్ను ఏదైనా అడగండి!`
+          : `Hello! I am your OWNIT Product Assistant for **${product.brand} ${product.name}**.\n\nI have instant access to your **${warranties.length} warranty component(s)**, **${documents.length} attached document(s)**, and maintenance records.\n\nAsk me anything about coverage, cleaning intervals, claim procedures, or troubleshooting!`;
+
         setMessages([
           {
             id: 'welcome-0',
             role: 'assistant',
-            content: `Hello! I am your OWNIT Product Assistant for **${product.brand} ${product.name}**.\n\nI have instant access to your **${warranties.length} warranty component(s)**, **${documents.length} attached document(s)**, and maintenance records.\n\nAsk me anything about coverage, cleaning intervals, claim procedures, or troubleshooting!`,
+            content: welcomeContent,
             sources: [`${product.brand} ${product.name} Dossier`],
             createdAt: new Date().toISOString()
           }
@@ -90,7 +90,7 @@ export default function ProductAIChatWidget({ product, warranties = [], document
     } finally {
       setFetchingHistory(false);
     }
-  }, [product?.id, product?.brand, product?.name, warranties.length, documents.length]);
+  }, [product?.id, product?.brand, product?.name, warranties.length, documents.length, language]);
 
   useEffect(() => {
     loadAiStatus();
@@ -152,7 +152,11 @@ export default function ProductAIChatWidget({ product, warranties = [], document
         {
           id: `welcome-${Date.now()}`,
           role: 'assistant',
-          content: `Conversation cleared. How can I help you with your **${product.brand} ${product.name}** today?`,
+          content: language === 'hi'
+            ? `बातचीत साफ़ कर दी गई। आज मैं आपकी **${product.brand} ${product.name}** के साथ कैसे मदद कर सकता हूँ?`
+            : language === 'te'
+            ? `సంభాషణ క్లియర్ చేయబడింది. ఈ రోజు నేను మీ **${product.brand} ${product.name}** తో ఎలా సహాయం చేయగలను?`
+            : `Conversation cleared. How can I help you with your **${product.brand} ${product.name}** today?`,
           sources: [`${product.brand} ${product.name} Dossier`],
           createdAt: new Date().toISOString()
         }
@@ -161,6 +165,23 @@ export default function ProductAIChatWidget({ product, warranties = [], document
       alert(`Could not clear history: ${err.message}`);
     }
   };
+
+  const suggestedPrompts = language === 'hi' ? [
+    "मेरी वारंटी के तहत क्या कवर किया गया है?",
+    "मुझे इस वस्तु को कैसे साफ और बनाए रखना चाहिए?",
+    "वारंटी के बहिष्करण (exclusions) क्या हैं?",
+    "ग्राहक सहायता के लिए वारंटी दावा संदेश का मसौदा तैयार करें"
+  ] : language === 'te' ? [
+    "నా వారంటీ కింద ఏమి కవర్ చేయబడింది?",
+    "ఈ వస్తువును ఎలా శుభ్రం చేయాలి మరియు నిర్వహించాలి?",
+    "వారంటీ మినహాయింపులు (exclusions) ఏమిటి?",
+    "కస్టమర్ సపోర్ట్ కోసం క్లెయిమ్ సందేశాన్ని డ్రాఫ్ట్ చేయండి"
+  ] : [
+    "What is covered under my warranty?",
+    "How should I clean and maintain this item?",
+    "What are the explicit warranty exclusions?",
+    "Draft a warranty claim message for customer support"
+  ];
 
   return (
     <Card className="product-ai-chat-card" padding="none">
@@ -172,15 +193,15 @@ export default function ProductAIChatWidget({ product, warranties = [], document
           </div>
           <div>
             <div className="ai-header-title-row">
-              <h4 className="ai-header-title">{product.name} AI Assistant</h4>
+              <h4 className="ai-header-title">{product.name} {t('nav.aiAssistant', {}, 'AI Assistant')}</h4>
               {aiStatus && (
                 <Badge variant={aiStatus.isAvailable ? 'active' : 'warning'} size="sm" dot>
-                  {aiStatus.isAvailable ? `Ollama (${aiStatus.configuredModel})` : 'Offline Fallback'}
+                  {aiStatus.isAvailable ? `Ollama (${aiStatus.configuredModel})` : t('common.offline', {}, 'Offline Fallback')}
                 </Badge>
               )}
             </div>
             <p className="ai-header-desc">
-              Context-anchored to {warranties.length} warranties, {documents.length} documents, and maintenance logs
+              {t('warranty.disclaimer', {}, 'Grounded in your registered warranties, documents, and maintenance logs')}
             </p>
           </div>
         </div>
@@ -191,9 +212,9 @@ export default function ProductAIChatWidget({ product, warranties = [], document
             size="sm"
             icon={Trash2}
             onClick={handleClearHistory}
-            title="Clear Chat History"
+            title={t('ai.clearHistory', {}, 'Clear Chat History')}
           >
-            Clear History
+            {t('ai.clearHistory', {}, 'Clear History')}
           </Button>
         </div>
       </div>
@@ -203,7 +224,7 @@ export default function ProductAIChatWidget({ product, warranties = [], document
         {fetchingHistory ? (
           <div className="chat-loading-box">
             <RefreshCw size={20} className="spinning" />
-            <span>Loading product conversation...</span>
+            <span>{t('common.loading', {}, 'Loading conversation...')}</span>
           </div>
         ) : (
           messages.map((msg) => {
@@ -235,7 +256,7 @@ export default function ProductAIChatWidget({ product, warranties = [], document
                   {!isUser && ((msg.sourceReferences && msg.sourceReferences.length > 0) || (msg.sources && msg.sources.length > 0)) && (
                     <div className="chat-sources-row">
                       <span className="sources-label">
-                        <ShieldCheck size={12} className="shield-icon" /> Sourced via:
+                        <ShieldCheck size={12} className="shield-icon" /> {t('ai.sourcesUsed', {}, 'Sourced via')}:
                       </span>
                       {msg.sourceReferences && msg.sourceReferences.length > 0 ? (
                         msg.sourceReferences.map((refItem, rIdx) => {
@@ -317,10 +338,10 @@ export default function ProductAIChatWidget({ product, warranties = [], document
       {/* Suggested Quick Prompts */}
       <div className="product-ai-quick-prompts">
         <span className="quick-prompts-label">
-          <Sparkles size={12} /> Suggested Queries:
+          <Sparkles size={12} /> {t('ai.sourcesUsed', {}, 'Suggested Queries')}:
         </span>
         <div className="quick-prompts-row">
-          {DEFAULT_SUGGESTED_PROMPTS.map((prompt, idx) => (
+          {suggestedPrompts.map((prompt, idx) => (
             <button
               key={idx}
               className="quick-prompt-btn"
@@ -337,7 +358,7 @@ export default function ProductAIChatWidget({ product, warranties = [], document
       <div className="product-ai-input-bar">
         <input
           type="text"
-          placeholder={`Ask about ${product.name} warranty coverage, cleaning, or claim steps...`}
+          placeholder={t('ai.placeholder', {}, `Ask about ${product.name} warranty coverage, cleaning, or claim steps...`)}
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           onKeyDown={(e) => {
@@ -355,7 +376,7 @@ export default function ProductAIChatWidget({ product, warranties = [], document
           onClick={() => handleSendMessage()}
           disabled={!inputMessage.trim() || loading}
         >
-          Send
+          {t('ai.send', {}, 'Send')}
         </Button>
       </div>
     </Card>

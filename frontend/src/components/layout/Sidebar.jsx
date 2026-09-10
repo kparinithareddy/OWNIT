@@ -11,40 +11,43 @@ import {
   Settings,
   X
 } from 'lucide-react';
+import { useLanguage } from '../../i18n/LanguageContext';
 import './Sidebar.css';
 
-const navGroups = [
-  {
-    title: 'Overview',
-    items: [
-      { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard }
-    ]
-  },
-  {
-    title: 'Inventory & Records',
-    items: [
-      { name: 'Products', path: '/products', icon: Package, badge: '5' },
-      { name: 'Documents', path: '/documents', icon: FileText, badge: '8' },
-      { name: 'Warranty Tracker', path: '/warranty', icon: ShieldCheck, badge: '2 Due' }
-    ]
-  },
-  {
-    title: 'Intelligence',
-    items: [
-      { name: 'AI Assistant', path: '/ai-assistant', icon: Bot, isNew: true },
-      { name: 'Accessories', path: '/accessories', icon: PlugZap }
-    ]
-  },
-  {
-    title: 'System',
-    items: [
-      { name: 'Notifications', path: '/notifications', icon: Bell, badge: '3' },
-      { name: 'Settings', path: '/settings', icon: Settings }
-    ]
-  }
-];
-
 export default function Sidebar({ isOpen, onClose }) {
+  const { t } = useLanguage();
+
+  const navGroups = [
+    {
+      title: t('nav.overview', {}, 'Overview'),
+      items: [
+        { name: t('nav.dashboard', {}, 'Dashboard'), path: '/dashboard', icon: LayoutDashboard }
+      ]
+    },
+    {
+      title: t('nav.inventoryRecords', {}, 'Inventory & Records'),
+      items: [
+        { name: t('nav.products', {}, 'Products'), path: '/products', icon: Package },
+        { name: t('nav.documents', {}, 'Documents'), path: '/documents', icon: FileText },
+        { name: t('nav.warrantyTracker', {}, 'Warranty Tracker'), path: '/warranty', icon: ShieldCheck }
+      ]
+    },
+    {
+      title: t('nav.intelligence', {}, 'Intelligence'),
+      items: [
+        { name: t('nav.aiAssistant', {}, 'AI Assistant'), path: '/ai-assistant', icon: Bot, isNew: true },
+        { name: t('nav.accessories', {}, 'Accessories'), path: '/accessories', icon: PlugZap }
+      ]
+    },
+    {
+      title: t('nav.system', {}, 'System'),
+      items: [
+        { name: t('nav.notifications', {}, 'Notifications'), path: '/notifications', icon: Bell },
+        { name: t('nav.settings', {}, 'Settings'), path: '/settings', icon: Settings }
+      ]
+    }
+  ];
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -52,7 +55,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
       <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-mobile-header">
-          <span className="sidebar-mobile-title">Navigation</span>
+          <span className="sidebar-mobile-title">{t('nav.inventoryRecords', {}, 'Navigation')}</span>
           <button className="sidebar-close-btn" onClick={onClose} aria-label="Close Sidebar">
             <X size={20} />
           </button>
@@ -96,8 +99,8 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="sidebar-status-box">
             <div className="status-indicator-dot" />
             <div className="status-text-box">
-              <span className="status-title">Ollama Engine</span>
-              <span className="status-subtitle">Local & Private</span>
+              <span className="status-title">{t('nav.ollamaEngine', {}, 'Ollama Engine')}</span>
+              <span className="status-subtitle">{t('nav.localPrivate', {}, 'Local & Private')}</span>
             </div>
           </div>
         </div>
@@ -105,3 +108,4 @@ export default function Sidebar({ isOpen, onClose }) {
     </>
   );
 }
+

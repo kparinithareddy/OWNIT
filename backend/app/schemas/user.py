@@ -51,6 +51,14 @@ class UserLoginRequest(BaseModel):
         return v.strip()
 
 
+class UserPreferencesUpdate(BaseModel):
+    preferredLanguage: Literal["en", "hi", "te"] = Field(
+        ...,
+        description="Preferred UI and assistant language: en (English), hi (Hindi), te (Telugu)"
+    )
+
+
+
 class UserResponse(BaseModel):
     id: str = Field(..., description="Unique user identifier")
     username: str = Field(..., description="User account name")

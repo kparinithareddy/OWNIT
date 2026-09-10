@@ -12,7 +12,7 @@ from app.core.exceptions import (
     ConflictException,
     UnauthorizedException
 )
-from app.schemas.user import UserSignupRequest, UserLoginRequest, UserResponse, TokenResponse
+from app.schemas.user import UserSignupRequest, UserLoginRequest, UserPreferencesUpdate, UserResponse, TokenResponse
 
 logger = logging.getLogger("ownit.services.user")
 
@@ -163,6 +163,32 @@ class UserService:
             tokenType="bearer",
             user=user_response
         )
+
+    async def update_preferences(self, user_id: str, prefs: UserPreferencesUpdate) -> UserResponse:
+        """
+        Updates the user's preferences, such as preferred UI/AI language.
+        """
+        if not ObjectId.is_valid(user_id):
+            raise NotFoundException(message="User not found", details={"userId": user_id})
+
+        now = datetime.now(timezone.utc)
+        result = await self.users_collection.find_one_and_update(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "preferredLanguage": prefs.preferredLanguage,
+                    "updatedAt": now
+                }
+            },
+            return_document=True
+        )
+
+        if not result:
+            raise NotFoundException(message="User not found", details={"userId": user_id})
+
+        logger.info(f"User {user_id} updated preferredLanguage to '{prefs.preferredLanguage}'")
+        return format_user_doc(result)
+
 
 
 user_service = UserService()

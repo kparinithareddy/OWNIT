@@ -11,12 +11,14 @@ import {
   Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 import { notificationsApi } from '../../services/api';
 import './Navbar.css';
 
 export default function Navbar({ onToggleSidebar }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { language, changeLanguage, t } = useLanguage();
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchUnread = async () => {
@@ -42,7 +44,14 @@ export default function Navbar({ onToggleSidebar }) {
     navigate('/login');
   };
 
-  const displayLanguage = (user?.preferredLanguage || 'en').toUpperCase();
+  const handleLanguageCycle = (e) => {
+    e.preventDefault();
+    const cycleMap = { en: 'hi', hi: 'te', te: 'en' };
+    const nextLang = cycleMap[language] || 'en';
+    changeLanguage(nextLang);
+  };
+
+  const displayLanguage = language.toUpperCase();
 
   return (
     <header className="navbar">
@@ -60,8 +69,8 @@ export default function Navbar({ onToggleSidebar }) {
             <Shield size={20} className="navbar-logo-icon" />
           </div>
           <div className="navbar-brand-text">
-            <span className="navbar-brand-name">OWNIT</span>
-            <span className="navbar-brand-tagline">Own More. Worry Less.</span>
+            <span className="navbar-brand-name">{t('common.appName', {}, 'OWNIT')}</span>
+            <span className="navbar-brand-tagline">{t('common.tagline', {}, 'Own More. Worry Less.')}</span>
           </div>
         </Link>
       </div>
@@ -71,7 +80,7 @@ export default function Navbar({ onToggleSidebar }) {
           <Search size={16} className="navbar-search-icon" />
           <input
             type="text"
-            placeholder="Search products, receipts, warranties (Press '/' to search)"
+            placeholder={t('nav.searchPlaceholder', {}, "Search products, receipts, warranties (Press '/' to search)")}
             className="navbar-search-input"
             onClick={() => navigate('/products')}
           />
@@ -80,13 +89,13 @@ export default function Navbar({ onToggleSidebar }) {
 
       <div className="navbar-right">
         {/* Quick Local AI Trigger */}
-        <Link to="/ai-assistant" className="navbar-ai-chip" title="Local AI Assistant">
+        <Link to="/ai-assistant" className="navbar-ai-chip" title={t('nav.aiAssistant', {}, 'Local AI Assistant')}>
           <Sparkles size={14} />
-          <span>Ask AI</span>
+          <span>{t('nav.askAi', {}, 'Ask AI')}</span>
         </Link>
 
         {/* Notifications Icon with Dynamic Badge */}
-        <Link to="/notifications" className="navbar-icon-btn" title="Notifications & Expiration Alerts">
+        <Link to="/notifications" className="navbar-icon-btn" title={t('nav.notifications', {}, 'Notifications & Expiration Alerts')}>
           <Bell size={18} />
           {unreadCount > 0 && (
             <span className="navbar-notification-badge" title={`${unreadCount} unread notification(s)`}>
@@ -95,11 +104,16 @@ export default function Navbar({ onToggleSidebar }) {
           )}
         </Link>
 
-        {/* Language Indicator */}
-        <Link to="/settings" className="navbar-lang-badge" title="Language settings">
+        {/* Quick Language Toggle Button */}
+        <button
+          onClick={handleLanguageCycle}
+          className="navbar-lang-badge"
+          title={`Current: ${displayLanguage}. Click to toggle English / Hindi / Telugu.`}
+          style={{ background: 'none', border: '1px solid var(--border-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
           <Globe size={14} />
           <span>{displayLanguage}</span>
-        </Link>
+        </button>
 
         {/* User Profile avatar */}
         <div className="navbar-user-profile">
@@ -108,12 +122,12 @@ export default function Navbar({ onToggleSidebar }) {
           </div>
           <div className="navbar-user-info">
             <span className="navbar-user-name">{user?.username || 'User'}</span>
-            <span className="navbar-user-role">Account Active</span>
+            <span className="navbar-user-role">{t('nav.accountActive', {}, 'Account Active')}</span>
           </div>
           <button
             className="navbar-logout-btn"
             onClick={handleLogout}
-            title="Log Out"
+            title={t('nav.logout', {}, 'Log Out')}
             style={{ background: 'none', border: 'none', cursor: 'pointer' }}
           >
             <LogOut size={16} />
@@ -123,3 +137,4 @@ export default function Navbar({ onToggleSidebar }) {
     </header>
   );
 }
+

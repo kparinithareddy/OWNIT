@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from app.schemas.user import (
     UserSignupRequest,
     UserLoginRequest,
+    UserPreferencesUpdate,
     UserResponse,
     TokenResponse
 )
@@ -53,3 +54,21 @@ async def get_current_user_profile(
     Returns the profile information for the authenticated token owner.
     """
     return current_user
+
+
+@router.patch(
+    "/preferences",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update User Preferences",
+    description="Updates user preferences such as preferred UI/AI language (en, hi, te)."
+)
+async def update_user_preferences(
+    prefs: UserPreferencesUpdate,
+    current_user: UserResponse = Depends(get_current_user)
+) -> UserResponse:
+    """
+    Updates the authenticated user's preferences in MongoDB.
+    """
+    return await user_service.update_preferences(current_user.id, prefs)
+

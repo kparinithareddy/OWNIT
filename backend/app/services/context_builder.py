@@ -15,7 +15,8 @@ def build_product_system_context(
     maintenance_records: List[Dict[str, Any]],
     recommendations: List[Dict[str, Any]],
     service_records: Optional[List[Dict[str, Any]]] = None,
-    query: str = ""
+    query: str = "",
+    language: str = "en"
 ) -> Tuple[str, List[SourceReference]]:
     """
     Constructs an extensive, fact-anchored system prompt containing all known product information
@@ -128,10 +129,37 @@ def build_product_system_context(
         url_part = f" ({s.url})" if s.url else (f" [Domain: {s.domain}]" if s.domain else "")
         source_hierarchy_lines.append(f"• [{tier_label}] {s.title}{url_part}: {s.details or ''}")
 
+    # 8. Target Language Instructions
+    if language == "hi":
+        language_instructions = (
+            "=== TARGET LANGUAGE & LOCALIZATION INSTRUCTIONS ===\n"
+            "The user's preferred language is HINDI (हिंदी).\n"
+            "1. You MUST formulate your response in natural, fluent Hindi using standard Devanagari script.\n"
+            "2. CRITICAL TECHNICAL ENTITY INTEGRITY: Never corrupt, mistranslate, or convert model numbers "
+            f"('{product.model}'), serial numbers, IMEI ('{product.imei or ''}'), brand name ('{product.brand}'), "
+            "technical component names, URLs, or prices (₹) into phonetic Hindi words. Keep them in standard Latin/numerical format."
+        )
+    elif language == "te":
+        language_instructions = (
+            "=== TARGET LANGUAGE & LOCALIZATION INSTRUCTIONS ===\n"
+            "The user's preferred language is TELUGU (తెలుగు).\n"
+            "1. You MUST formulate your response in natural, fluent Telugu using standard Telugu script.\n"
+            "2. CRITICAL TECHNICAL ENTITY INTEGRITY: Never corrupt, mistranslate, or convert model numbers "
+            f"('{product.model}'), serial numbers, IMEI ('{product.imei or ''}'), brand name ('{product.brand}'), "
+            "technical component names, URLs, or prices (₹) into phonetic Telugu words. Keep them in standard Latin/numerical format."
+        )
+    else:
+        language_instructions = (
+            "=== TARGET LANGUAGE & LOCALIZATION INSTRUCTIONS ===\n"
+            "The user's preferred language is English. Respond in fluent, clear English."
+        )
+
     # Assemble System Prompt
     system_prompt = f"""You are OWNIT Assistant, an intelligent, objective, and privacy-first product management assistant for physical consumer assets.
 
 You are assisting the verified owner of this specific asset.
+
+{language_instructions}
 
 === SOURCE PRIORITY HIERARCHY ===
 When answering questions or checking policies, strictly prioritize information in this order:
@@ -167,4 +195,5 @@ When answering questions or checking policies, strictly prioritize information i
 """
 
     return system_prompt, structured_sources
+
 

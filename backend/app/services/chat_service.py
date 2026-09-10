@@ -19,6 +19,8 @@ from app.services.warranty_service import warranty_service
 from app.services.maintenance_service import maintenance_service
 from app.services.ai_service import ai_service, OllamaAIService
 from app.services.context_builder import build_product_system_context
+from app.services.translation_service import translation_service
+from app.services.user_service import user_service
 
 logger = logging.getLogger("ownit.services.chat")
 
@@ -141,14 +143,24 @@ class ChatService:
         recommendations = await maintenance_service.get_preventive_recommendations(data.productId, user_id)
         rec_dicts = [r.model_dump() for r in recommendations]
 
-        # Build comprehensive system context & available sources
+        # Determine user preferred language
+        user_lang = "en"
+        try:
+            user_profile = await user_service.get_by_id(user_id)
+            if user_profile and user_profile.get("preferredLanguage"):
+                user_lang = user_profile.get("preferredLanguage", "en")
+        except Exception as e:
+            logger.debug("Could not lookup user preferredLanguage for AI chat: %s", e)
+
+        # Build comprehensive system context & available sources with user's preferred language
         system_prompt, all_sources = build_product_system_context(
             product=product,
             warranties=warranties,
             documents=documents,
             maintenance_records=maintenance_records,
             recommendations=rec_dicts,
-            service_records=service_records
+            service_records=service_records,
+            language=user_lang
         )
 
         # Retrieve last 10 messages for multi-turn history context
@@ -190,18 +202,16 @@ class ChatService:
             temperature=0.6
         )
 
-        # If Ollama is offline or errored, generate friendly graceful response
+        # If Ollama is offline or errored, generate friendly graceful response in user's language
         if ai_res.success and ai_res.response:
             ai_reply_text = ai_res.response
         else:
-            ai_reply_text = (
-                f"I am currently operating in offline mode because the local Ollama service could not be reached. "
-                f"However, based on your recorded database records for **{product.name}**:\n"
-                f"• **Purchase Date**: {product.purchaseDate}\n"
-                f"• **Warranty**: {len(warranties)} registered component(s) ({', '.join([w.type for w in warranties]) if warranties else 'No active warranty'})\n"
-                f"• **Documents**: {len(documents)} document(s) stored.\n"
-                f"• **Maintenance**: {len(maintenance_records)} record(s) logged.\n\n"
-                f"To enable complete local conversational AI, please ensure Ollama is running (`ollama serve`)."
+            ai_reply_text = translation_service.translate_explanation(
+                template_key="offline_ai_fallback",
+                target_lang=user_lang,
+                product_name=product.name,
+                purchase_date=product.purchaseDate,
+                warranty_count=len(warranties)
             )
         # Identify which sources are relevant to the query based on hierarchy
         cited_sources_str = []
