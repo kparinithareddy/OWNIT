@@ -23,7 +23,8 @@ import {
   Volume2,
   Camera as CameraIcon,
   Gamepad2,
-  Tag
+  Tag,
+  RotateCcw
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card, { StatCard } from '../../components/common/Card';
@@ -123,10 +124,17 @@ export default function Dashboard() {
     return map;
   }, [warranties]);
 
-  // Expiring soon items
-  const expiringSoonItems = useMemo(() => {
+  // Expiring soon warranty items
+  const expiringSoonWarranties = useMemo(() => {
     return warranties.filter((w) => w.status === 'Expiring Soon');
   }, [warranties]);
+
+  // Ending soon return window products
+  const endingSoonReturns = useMemo(() => {
+    return products.filter((p) => p.returnStatus === 'Ending Soon');
+  }, [products]);
+
+  const hasExpiringDeadlines = expiringSoonWarranties.length > 0 || endingSoonReturns.length > 0;
 
   // Filter products client-side for immediate responsive search/brand/category filtering
   const filteredProducts = useMemo(() => {
@@ -157,7 +165,7 @@ export default function Dashboard() {
   return (
     <PageContainer
       title="Dashboard Overview"
-      subtitle="Track your physical assets, multi-component warranties, and upcoming expiration deadlines."
+      subtitle="Track your physical assets, return deadlines, multi-component warranties, and upcoming expiration milestones."
       actions={
         <div className="dashboard-top-actions">
           <Button
@@ -195,8 +203,8 @@ export default function Dashboard() {
         />
         <StatCard
           title="Expiring Soon"
-          value={loading ? '...' : String(warrantySummary.expiringSoon)}
-          subtitle="🟠 Expiring within 30 days"
+          value={loading ? '...' : String(warrantySummary.expiringSoon + endingSoonReturns.length)}
+          subtitle={`🟠 ${warrantySummary.expiringSoon} warranties & ${endingSoonReturns.length} returns`}
           icon={Clock}
           variant="warning"
         />
@@ -211,29 +219,66 @@ export default function Dashboard() {
 
       {/* 2. Expiring Soon Section */}
       <Card
-        title="⏳ Expiring Soon (Warranties & Returns)"
-        subtitle="Monitors deadlines requiring attention in the next 30 days"
+        title="⏳ Expiring Soon (Warranties & Return Deadlines)"
+        subtitle="Monitors critical warranty components and store return windows requiring attention soon"
         className="expiring-section-card"
       >
-        {expiringSoonItems.length === 0 ? (
+        {!hasExpiringDeadlines ? (
           <div className="expiring-placeholder-box">
             <div className="expiring-placeholder-icon">
               <Clock size={28} />
             </div>
             <div className="expiring-placeholder-text">
-              <h4 className="expiring-placeholder-title">No Warranties Expiring Soon</h4>
+              <h4 className="expiring-placeholder-title">No Deadlines Expiring Soon</h4>
               <p className="expiring-placeholder-desc">
-                All your registered products are in good standing. When components have 30 or fewer days remaining, active alerts will appear here.
+                All your warranties and store return windows are in good standing. When return windows or warranties have 30 or fewer days remaining, active countdown alerts will appear here.
               </p>
             </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {expiringSoonItems.map((w) => {
+            {/* Returns Ending Soon */}
+            {endingSoonReturns.map((prod) => (
+              <div
+                key={`ret-${prod.id}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <RotateCcw size={22} color="#f59e0b" />
+                  <div>
+                    <h5 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>
+                      Return Window Closing: {prod.name}
+                    </h5>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                      Deadline: <strong>{prod.returnDeadline}</strong> ({prod.returnDaysRemaining === 0 ? 'Ends Today' : `${prod.returnDaysRemaining} days left`}) &bull; Seller: {prod.seller || 'Store'}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/products/${prod.id}`)}
+                >
+                  View Product
+                </Button>
+              </div>
+            ))}
+
+            {/* Warranties Expiring Soon */}
+            {expiringSoonWarranties.map((w) => {
               const prod = products.find((p) => p.id === w.productId);
               return (
                 <div
-                  key={w.id}
+                  key={`warr-${w.id}`}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -403,13 +448,23 @@ export default function Dashboard() {
               const allExpired = pWarranties.length > 0 && pWarranties.every((w) => w.status === 'Expired');
 
               let warrantyBadgeLabel = 'No Warranty';
-              let warrantyBadgeColor = 'neutral';
               if (hasExpiring) {
-                warrantyBadgeLabel = '🟠 Expiring Soon';
+                warrantyBadgeLabel = '🟠 Warranty Expiring Soon';
               } else if (hasActive) {
-                warrantyBadgeLabel = '🟢 Active';
+                warrantyBadgeLabel = '🟢 Warranty Active';
               } else if (allExpired) {
-                warrantyBadgeLabel = '🔴 Expired';
+                warrantyBadgeLabel = '🔴 Warranty Expired';
+              }
+
+              // Return badge
+              const retStatus = product.returnStatus;
+              let returnBadgeLabel = null;
+              if (retStatus === 'Active') {
+                returnBadgeLabel = `🟢 Return: ${product.returnDaysRemaining}d left`;
+              } else if (retStatus === 'Ending Soon') {
+                returnBadgeLabel = `🟠 Return Ends: ${product.returnDaysRemaining}d`;
+              } else if (retStatus === 'Expired') {
+                returnBadgeLabel = '🔴 Return Closed';
               }
 
               return (
@@ -442,6 +497,11 @@ export default function Dashboard() {
 
                     <div className="item-badges-column">
                       <span className="category-pill">{product.category}</span>
+                      {returnBadgeLabel && (
+                        <span className="warranty-status-pill" title="Store Return Status" style={{ fontSize: '0.6875rem' }}>
+                          {returnBadgeLabel}
+                        </span>
+                      )}
                       <span className="warranty-status-pill" title="Warranty Status">
                         {warrantyBadgeLabel}
                       </span>
@@ -474,9 +534,9 @@ export default function Dashboard() {
                         <span className="item-qty-tag">x{product.quantity}</span>
                       )}
                     </div>
-                    <div className="life-score-placeholder" title="Product Life Score">
-                      <span className="score-label">Components:</span>
-                      <span className="score-badge">{pWarranties.length}</span>
+                    <div className="life-score-placeholder" title="Warranty Components">
+                      <span className="score-label">Coverage:</span>
+                      <span className="score-badge">{pWarranties.length} Tier(s)</span>
                     </div>
                   </div>
                 </Card>

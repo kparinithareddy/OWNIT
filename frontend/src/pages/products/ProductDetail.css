@@ -344,6 +344,68 @@
   margin: 0;
 }
 
+/* Return & Replacement Policy Box */
+.return-policy-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.return-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-surface-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.return-metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ret-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ret-val {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.ret-val.highlight {
+  color: var(--primary);
+}
+
+.return-source-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.ret-source-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.ret-source-val {
+  color: var(--text-main);
+  font-weight: 500;
+}
+
 @media (max-width: 768px) {
   .hero-grid {
     flex-direction: column;
@@ -356,3 +418,4 @@
     width: 100%;
   }
 }
+

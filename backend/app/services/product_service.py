@@ -8,14 +8,32 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.core.database import db_manager
 from app.core.exceptions import AppException, NotFoundException
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from app.services.return_service import (
+    calculate_return_deadline,
+    calculate_return_status,
+    get_verified_seller_policy
+)
 
 logger = logging.getLogger("ownit.services.product")
 
 
 def format_product_doc(doc: Dict[str, Any]) -> ProductResponse:
     """
-    Transforms a raw MongoDB document into a typed ProductResponse schema.
+    Transforms a raw MongoDB document into a typed ProductResponse schema
+    with dynamically computed return/replacement status and deadlines.
     """
+    return_duration = doc.get("returnDuration")
+    return_start_date = doc.get("returnStartDate") or doc.get("purchaseDate")
+    return_deadline = doc.get("returnDeadline")
+    return_source = doc.get("returnPolicySource")
+
+    # If deadline is missing but duration and start date are known, auto-derive deadline
+    if not return_deadline and return_duration and return_start_date:
+        return_deadline = calculate_return_deadline(return_start_date, return_duration)
+
+    # Compute return status & remaining days (returns ('Unknown', None) if information is missing)
+    return_status, days_remaining = calculate_return_status(return_deadline)
+
     return ProductResponse(
         id=str(doc["_id"]),
         userId=str(doc["userId"]),
@@ -31,6 +49,12 @@ def format_product_doc(doc: Dict[str, Any]) -> ProductResponse:
         imei=doc.get("imei"),
         image=doc.get("image"),
         notes=doc.get("notes"),
+        returnDuration=return_duration,
+        returnStartDate=doc.get("returnStartDate"),
+        returnDeadline=return_deadline,
+        returnPolicySource=return_source,
+        returnStatus=return_status,
+        returnDaysRemaining=days_remaining,
         createdAt=doc.get("createdAt", datetime.now(timezone.utc)),
         updatedAt=doc.get("updatedAt", datetime.now(timezone.utc))
     )
@@ -68,15 +92,34 @@ class ProductService:
                 [("userId", 1), ("category", 1)],
                 name="user_products_category_idx"
             )
-            logger.info(" Product indexes ensured in MongoDB.")
+            logger.info("Product indexes ensured in MongoDB.")
         except Exception as exc:
             logger.warning(f"Could not create product indexes: {exc}")
 
     async def create_product(self, user_id: str, data: ProductCreate) -> ProductResponse:
         """
         Creates a new product record scoped to the authenticated user.
+        If return policy is not explicitly provided, checks verified seller policy defaults if available.
         """
         now = datetime.now(timezone.utc)
+
+        return_duration = data.returnDuration
+        return_start_date = data.returnStartDate or data.purchaseDate
+        return_deadline = data.returnDeadline
+        return_source = data.returnPolicySource
+
+        # Check verified seller policy defaults if user didn't specify return info
+        if not return_duration and not return_deadline and data.seller:
+            seller_policy = get_verified_seller_policy(data.seller)
+            if seller_policy:
+                return_duration = seller_policy.get("duration")
+                return_source = seller_policy.get("source")
+                return_deadline = calculate_return_deadline(return_start_date, return_duration)
+
+        # Auto-derive deadline if duration and start date provided
+        if not return_deadline and return_duration and return_start_date:
+            return_deadline = calculate_return_deadline(return_start_date, return_duration)
+
         doc = {
             "userId": user_id,
             "name": data.name,
@@ -91,6 +134,10 @@ class ProductService:
             "imei": data.imei,
             "image": data.image,
             "notes": data.notes,
+            "returnDuration": return_duration,
+            "returnStartDate": data.returnStartDate,
+            "returnDeadline": return_deadline,
+            "returnPolicySource": return_source,
             "createdAt": now,
             "updatedAt": now
         }
@@ -170,11 +217,18 @@ class ProductService:
                 details={"productId": product_id}
             )
 
-        # Filter out None fields from update payload
         update_dict = {k: v for k, v in data.model_dump().items() if v is not None}
         if not update_dict:
-            # If nothing to update, just return current product
             return await self.get_product_by_id(product_id, user_id)
+
+        # Recalculate deadline if start date or duration changed
+        if "returnDuration" in update_dict or "returnStartDate" in update_dict:
+            current = await self.collection.find_one({"_id": ObjectId(product_id), "userId": user_id})
+            if current:
+                start_date = update_dict.get("returnStartDate") or current.get("returnStartDate") or current.get("purchaseDate")
+                duration = update_dict.get("returnDuration") or current.get("returnDuration")
+                if duration and start_date and "returnDeadline" not in update_dict:
+                    update_dict["returnDeadline"] = calculate_return_deadline(start_date, duration)
 
         update_dict["updatedAt"] = datetime.now(timezone.utc)
 

@@ -44,6 +44,11 @@ class ProductCreate(BaseModel):
     imei: Optional[str] = Field(default=None, max_length=50, description="IMEI number (for mobile/cellular devices)")
     image: Optional[str] = Field(default=None, description="Image URL or placeholder identifier")
     notes: Optional[str] = Field(default=None, max_length=1000, description="Additional notes or specifications")
+    # Return & Replacement tracking fields
+    returnDuration: Optional[str] = Field(default=None, description="Return duration (e.g. '7 Days', '10 Days', '14 Days', '30 Days')")
+    returnStartDate: Optional[str] = Field(default=None, description="Return period start date (YYYY-MM-DD)")
+    returnDeadline: Optional[str] = Field(default=None, description="Return deadline date (YYYY-MM-DD)")
+    returnPolicySource: Optional[str] = Field(default=None, description="Source of policy information (e.g. 'Amazon India Replacement Policy', 'Store Receipt')")
 
     @field_validator("name", "brand", "model")
     @classmethod
@@ -67,6 +72,11 @@ class ProductUpdate(BaseModel):
     imei: Optional[str] = Field(default=None, max_length=50)
     image: Optional[str] = None
     notes: Optional[str] = Field(default=None, max_length=1000)
+    # Return & Replacement tracking fields
+    returnDuration: Optional[str] = None
+    returnStartDate: Optional[str] = None
+    returnDeadline: Optional[str] = None
+    returnPolicySource: Optional[str] = None
 
     @field_validator("name", "brand", "model")
     @classmethod
@@ -94,6 +104,13 @@ class ProductResponse(BaseModel):
     imei: Optional[str] = None
     image: Optional[str] = None
     notes: Optional[str] = None
+    # Return tracking properties
+    returnDuration: Optional[str] = None
+    returnStartDate: Optional[str] = None
+    returnDeadline: Optional[str] = None
+    returnPolicySource: Optional[str] = None
+    returnStatus: str = "Unknown"
+    returnDaysRemaining: Optional[int] = None
     createdAt: datetime
     updatedAt: datetime
 
@@ -115,6 +132,12 @@ class ProductResponse(BaseModel):
                 "imei": None,
                 "image": None,
                 "notes": "Purchased during Great Republic Day Sale",
+                "returnDuration": "7 Days",
+                "returnStartDate": "2024-03-15",
+                "returnDeadline": "2024-03-22",
+                "returnPolicySource": "Amazon India Standard Replacement Policy",
+                "returnStatus": "Expired",
+                "returnDaysRemaining": -890,
                 "createdAt": "2026-09-10T11:00:00Z",
                 "updatedAt": "2026-09-10T11:00:00Z"
             }

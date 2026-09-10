@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   AlertTriangle,
+  RotateCcw,
   Smartphone,
   Laptop,
   Tv,
@@ -30,7 +31,8 @@ import {
   PhoneCall,
   CheckCircle2,
   XCircle,
-  HelpCircle
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -198,6 +200,21 @@ export default function ProductDetail() {
   const activeWarrantiesCount = warranties.filter((w) => w.status === 'Active').length;
   const expiringWarrantiesCount = warranties.filter((w) => w.status === 'Expiring Soon').length;
 
+  // Return status styling & text
+  const returnStatus = product.returnStatus || 'Unknown';
+  let returnBadgeVariant = 'neutral';
+  let returnBadgeText = 'No Return Info';
+  if (returnStatus === 'Active') {
+    returnBadgeVariant = 'active';
+    returnBadgeText = `Return Active (${product.returnDaysRemaining}d left)`;
+  } else if (returnStatus === 'Ending Soon') {
+    returnBadgeVariant = 'warning';
+    returnBadgeText = `Return Ending Soon (${product.returnDaysRemaining}d left)`;
+  } else if (returnStatus === 'Expired') {
+    returnBadgeVariant = 'neutral';
+    returnBadgeText = 'Return Window Closed';
+  }
+
   return (
     <PageContainer
       badge={
@@ -257,14 +274,24 @@ export default function ProductDetail() {
                   {product.category}
                 </Badge>
                 <span className="hero-brand">{product.brand}</span>
+
+                {/* Return Window Badge */}
+                {returnStatus !== 'Unknown' && (
+                  <Badge variant={returnBadgeVariant} size="sm" dot>
+                    <RotateCcw size={11} style={{ marginRight: '3px' }} />
+                    {returnBadgeText}
+                  </Badge>
+                )}
+
+                {/* Warranty Coverage Badge */}
                 {warranties.length > 0 ? (
                   expiringWarrantiesCount > 0 ? (
                     <Badge variant="warning" size="sm" dot>
-                      {expiringWarrantiesCount} Expiring Soon
+                      {expiringWarrantiesCount} Warranty Expiring Soon
                     </Badge>
                   ) : activeWarrantiesCount > 0 ? (
                     <Badge variant="active" size="sm" dot>
-                      {activeWarrantiesCount} Active Component(s)
+                      {activeWarrantiesCount} Active Warranty
                     </Badge>
                   ) : (
                     <Badge variant="danger" size="sm" dot>
@@ -319,50 +346,123 @@ export default function ProductDetail() {
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className="tab-grid-2col">
-          {/* Purchase & Seller Info */}
-          <Card title="Purchase & Vendor Details">
-            <div className="detail-meta-list">
-              <div className="detail-meta-row">
-                <span className="meta-label"><Calendar size={15} /> Purchase Date:</span>
-                <span className="meta-val">{product.purchaseDate}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Return & Replacement Policy Summary Card */}
+          <Card
+            title="Return & Replacement Period"
+            subtitle="Window for replacement, return, or store exchange following purchase"
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                icon={Edit2}
+                onClick={() => setIsEditModalOpen(true)}
+              >
+                Configure Return Window
+              </Button>
+            }
+          >
+            {returnStatus === 'Unknown' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: 'var(--bg-surface-secondary)', borderRadius: 'var(--radius-md)' }}>
+                <RotateCcw size={20} color="var(--text-muted)" />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                    No return or replacement window recorded
+                  </span>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    Click "Configure Return Window" to record verified store or seller return terms (e.g. 7-Day Replacement).
+                  </p>
+                </div>
               </div>
-              <div className="detail-meta-row">
-                <span className="meta-label"><DollarSign size={15} /> Unit Price:</span>
-                <span className="meta-val">₹{product.price.toLocaleString('en-IN')}</span>
+            ) : (
+              <div className="return-policy-box">
+                <div className="return-policy-grid">
+                  <div className="return-metric-item">
+                    <span className="ret-label">Status</span>
+                    <span className="ret-val">
+                      <Badge variant={returnBadgeVariant} size="sm" dot>
+                        {product.returnStatus}
+                      </Badge>
+                    </span>
+                  </div>
+                  <div className="return-metric-item">
+                    <span className="ret-label">Duration</span>
+                    <span className="ret-val">{product.returnDuration || 'N/A'}</span>
+                  </div>
+                  <div className="return-metric-item">
+                    <span className="ret-label">Return Deadline</span>
+                    <span className="ret-val highlight">{product.returnDeadline || 'N/A'}</span>
+                  </div>
+                  <div className="return-metric-item">
+                    <span className="ret-label">Time Remaining</span>
+                    <span className="ret-val">
+                      {product.returnDaysRemaining !== null && product.returnDaysRemaining !== undefined
+                        ? product.returnDaysRemaining < 0
+                          ? `Closed ${Math.abs(product.returnDaysRemaining)} days ago`
+                          : product.returnDaysRemaining === 0
+                          ? 'Ends Today'
+                          : `${product.returnDaysRemaining} days remaining`
+                        : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+
+                {product.returnPolicySource && (
+                  <div className="return-source-row">
+                    <span className="ret-source-label"><Info size={13} /> Verified Policy Source:</span>
+                    <span className="ret-source-val">{product.returnPolicySource}</span>
+                  </div>
+                )}
               </div>
-              <div className="detail-meta-row">
-                <span className="meta-label"><Store size={15} /> Store / Vendor:</span>
-                <span className="meta-val">{product.seller || 'Not specified'}</span>
-              </div>
-              <div className="detail-meta-row">
-                <span className="meta-label"><Package size={15} /> Quantity:</span>
-                <span className="meta-val">{product.quantity} unit(s)</span>
-              </div>
-            </div>
+            )}
           </Card>
 
-          {/* Identifiers & Hardware Info */}
-          <Card title="Device Identifiers">
-            <div className="detail-meta-list">
-              <div className="detail-meta-row">
-                <span className="meta-label"><Hash size={15} /> Serial Number:</span>
-                <span className="meta-val">{product.serialNumber || 'Not recorded'}</span>
+          {/* 2-Column Detail Grid */}
+          <div className="tab-grid-2col">
+            {/* Purchase & Seller Info */}
+            <Card title="Purchase & Vendor Details">
+              <div className="detail-meta-list">
+                <div className="detail-meta-row">
+                  <span className="meta-label"><Calendar size={15} /> Purchase Date:</span>
+                  <span className="meta-val">{product.purchaseDate}</span>
+                </div>
+                <div className="detail-meta-row">
+                  <span className="meta-label"><DollarSign size={15} /> Unit Price:</span>
+                  <span className="meta-val">₹{product.price.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="detail-meta-row">
+                  <span className="meta-label"><Store size={15} /> Store / Vendor:</span>
+                  <span className="meta-val">{product.seller || 'Not specified'}</span>
+                </div>
+                <div className="detail-meta-row">
+                  <span className="meta-label"><Package size={15} /> Quantity:</span>
+                  <span className="meta-val">{product.quantity} unit(s)</span>
+                </div>
               </div>
-              <div className="detail-meta-row">
-                <span className="meta-label"><Smartphone size={15} /> IMEI Number:</span>
-                <span className="meta-val">{product.imei || 'N/A'}</span>
+            </Card>
+
+            {/* Identifiers & Hardware Info */}
+            <Card title="Device Identifiers">
+              <div className="detail-meta-list">
+                <div className="detail-meta-row">
+                  <span className="meta-label"><Hash size={15} /> Serial Number:</span>
+                  <span className="meta-val">{product.serialNumber || 'Not recorded'}</span>
+                </div>
+                <div className="detail-meta-row">
+                  <span className="meta-label"><Smartphone size={15} /> IMEI Number:</span>
+                  <span className="meta-val">{product.imei || 'N/A'}</span>
+                </div>
+                <div className="detail-meta-row">
+                  <span className="meta-label"><Layers size={15} /> Category:</span>
+                  <span className="meta-val">{product.category}</span>
+                </div>
+                <div className="detail-meta-row">
+                  <span className="meta-label"><Clock size={15} /> Registered On:</span>
+                  <span className="meta-val">{new Date(product.createdAt).toLocaleDateString()}</span>
+                </div>
               </div>
-              <div className="detail-meta-row">
-                <span className="meta-label"><Layers size={15} /> Category:</span>
-                <span className="meta-val">{product.category}</span>
-              </div>
-              <div className="detail-meta-row">
-                <span className="meta-label"><Clock size={15} /> Registered On:</span>
-                <span className="meta-val">{new Date(product.createdAt).toLocaleDateString()}</span>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
       )}
 
