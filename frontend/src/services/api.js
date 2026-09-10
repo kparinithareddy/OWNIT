@@ -95,10 +95,17 @@ export const productsApi = {
   list: (params = {}) => {
     const query = new URLSearchParams();
     if (params.category && params.category !== 'All') query.append('category', params.category);
+    if (params.brand && params.brand !== 'All') query.append('brand', params.brand);
     if (params.search && params.search.trim()) query.append('search', params.search.trim());
+    if (params.warrantyStatus && params.warrantyStatus !== 'all') query.append('warrantyStatus', params.warrantyStatus);
+    if (params.returnStatus && params.returnStatus !== 'all') query.append('returnStatus', params.returnStatus);
+    if (params.maintenanceStatus && params.maintenanceStatus !== 'all') query.append('maintenanceStatus', params.maintenanceStatus);
+    if (params.sortBy) query.append('sortBy', params.sortBy);
+    if (params.sortOrder) query.append('sortOrder', params.sortOrder);
     const queryStr = query.toString() ? `?${query.toString()}` : '';
     return request(`/products/${queryStr}`, { method: 'GET' });
   },
+  getBrands: () => request('/products/brands', { method: 'GET' }),
   get: (id) => request(`/products/${id}`, { method: 'GET' }),
   getTimeline: (id) => request(`/products/${id}/timeline`, { method: 'GET' }),
   addTimelineEvent: (id, payload) => request(`/products/${id}/timeline`, { method: 'POST', body: payload }),

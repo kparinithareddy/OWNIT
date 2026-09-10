@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package,
@@ -19,7 +19,16 @@ import {
   Camera,
   Gamepad2,
   Sparkles,
-  Layers
+  Layers,
+  Filter,
+  X,
+  RotateCcw,
+  ShieldCheck,
+  ShieldAlert,
+  Clock,
+  Wrench,
+  ArrowUpDown,
+  Tag
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -32,6 +41,7 @@ import ProductFormModal from '../../components/products/ProductFormModal';
 import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
 import { productsApi } from '../../services/api';
+import { useLanguage } from '../../i18n/LanguageContext';
 import './ProductList.css';
 
 // Helper to pick category icon
@@ -53,12 +63,21 @@ function getCategoryIcon(cat) {
 
 export default function ProductList() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
+
   const [products, setProducts] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedBrand, setSelectedBrand] = useState('All');
+  const [warrantyStatus, setWarrantyStatus] = useState('all');
+  const [returnStatus, setReturnStatus] = useState('all');
+  const [maintenanceStatus, setMaintenanceStatus] = useState('all');
+  const [sortOption, setSortOption] = useState('createdAt:desc');
 
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -66,30 +85,76 @@ export default function ProductList() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [deletingProductId, setDeletingProductId] = useState(null);
 
+  // Check if any filter is active
+  const hasActiveFilters = useMemo(() => {
+    return (
+      (searchTerm && searchTerm.trim().length > 0) ||
+      selectedCategory !== 'All' ||
+      selectedBrand !== 'All' ||
+      warrantyStatus !== 'all' ||
+      returnStatus !== 'all' ||
+      maintenanceStatus !== 'all'
+    );
+  }, [searchTerm, selectedCategory, selectedBrand, warrantyStatus, returnStatus, maintenanceStatus]);
+
+  // Fetch unique brands
+  const fetchBrands = useCallback(async () => {
+    try {
+      const brandList = await productsApi.getBrands();
+      setBrands(brandList || []);
+    } catch (err) {
+      console.warn('Could not fetch brand list:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBrands();
+  }, [fetchBrands]);
+
+  // Fetch products with full server-side filtering
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
+      const [sortBy, sortOrder] = sortOption.split(':');
+
       const data = await productsApi.list({
+        search: searchTerm,
         category: selectedCategory,
-        search: searchTerm
+        brand: selectedBrand,
+        warrantyStatus: warrantyStatus,
+        returnStatus: returnStatus,
+        maintenanceStatus: maintenanceStatus,
+        sortBy: sortBy || 'createdAt',
+        sortOrder: sortOrder || 'desc'
       });
-      setProducts(data);
+
+      setProducts(data || []);
     } catch (err) {
       console.error('Error fetching products:', err);
       setError(err.message || 'Failed to load products');
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, searchTerm]);
+  }, [searchTerm, selectedCategory, selectedBrand, warrantyStatus, returnStatus, maintenanceStatus, sortOption]);
 
   useEffect(() => {
-    // Debounce search/filter fetch
     const timer = setTimeout(() => {
       fetchProducts();
     }, 200);
     return () => clearTimeout(timer);
   }, [fetchProducts]);
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('All');
+    setSelectedBrand('All');
+    setWarrantyStatus('all');
+    setReturnStatus('all');
+    setMaintenanceStatus('all');
+    setSortOption('createdAt:desc');
+  };
 
   const handleOpenAdd = () => {
     setEditingProduct(null);
@@ -112,6 +177,7 @@ export default function ProductList() {
       setDeletingProductId(productId);
       await productsApi.delete(productId);
       setProducts((prev) => prev.filter((p) => p.id !== productId));
+      fetchBrands();
     } catch (err) {
       alert(`Could not delete product: ${err.message}`);
     } finally {
@@ -123,8 +189,8 @@ export default function ProductList() {
 
   return (
     <PageContainer
-      title="My Products & Assets"
-      subtitle="Catalog, manage, and track all your physical items securely."
+      title={t('products.title') || 'My Products & Assets'}
+      subtitle={t('products.subtitle') || 'Catalog, manage, and track all your physical items securely.'}
       actions={
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <Button
@@ -132,52 +198,213 @@ export default function ProductList() {
             icon={<Sparkles size={16} />}
             onClick={() => setIsScannerOpen(true)}
           >
-            Scan Receipt
+            {t('products.scanReceipt') || 'Scan Receipt'}
           </Button>
           <Button
             variant="primary"
             icon={<Plus size={16} />}
             onClick={handleOpenAdd}
           >
-            Add Product
+            {t('products.addNewProduct') || 'Add Product'}
           </Button>
         </div>
       }
     >
-      {/* Search & Category Filter Toolbar */}
+      {/* Search & Comprehensive Filters Toolbar */}
       <div className="product-filter-bar">
-        <div className="product-search-box">
-          <Search size={16} className="product-search-icon" />
-          <input
-            type="text"
-            placeholder="Search by product name, brand, model, serial #, or seller..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="product-search-input"
-          />
-        </div>
+        {/* Top row: Search input & Sort dropdown */}
+        <div className="product-search-sort-row">
+          <div className="product-search-box">
+            <Search size={16} className="product-search-icon" />
+            <input
+              type="text"
+              placeholder={t('products.searchPlaceholder') || 'Search by product name, brand, model, or serial number...'}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="product-search-input"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setSearchTerm('')}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
 
-        <div className="product-filters">
-          <div className="filter-group">
-            <span className="filter-label"><Layers size={14} /> Category:</span>
-            <div className="filter-pills">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  className={`filter-pill ${selectedCategory === cat ? 'filter-pill-active' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+          <div className="product-sort-box">
+            <ArrowUpDown size={15} className="sort-icon" />
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value)}
+              className="product-filter-select"
+            >
+              <option value="createdAt:desc">{t('products.newestFirst') || 'Newest Added'}</option>
+              <option value="createdAt:asc">{t('products.oldestFirst') || 'Oldest Added'}</option>
+              <option value="price:desc">{t('products.priceHighLow') || 'Price: High to Low'}</option>
+              <option value="price:asc">{t('products.priceLowHigh') || 'Price: Low to High'}</option>
+              <option value="name:asc">{t('products.nameAsc') || 'Name: A to Z'}</option>
+              <option value="purchaseDate:desc">{t('products.purchaseDateDesc') || 'Purchase Date: Newest'}</option>
+            </select>
           </div>
         </div>
+
+        {/* Category Pill Filters */}
+        <div className="filter-group-category">
+          <span className="filter-label"><Layers size={14} /> {t('products.filterCategory') || 'Category'}:</span>
+          <div className="filter-pills">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`filter-pill ${selectedCategory === cat ? 'filter-pill-active' : ''}`}
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Dropdown Filters Row: Brand, Warranty, Return, Maintenance */}
+        <div className="product-filter-dropdowns-row">
+          {/* Brand Filter */}
+          <div className="filter-select-wrapper">
+            <span className="filter-mini-label"><Tag size={12} /> {t('products.filterBrand') || 'Brand'}</span>
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="product-filter-select"
+            >
+              <option value="All">{t('products.allBrands') || 'All Brands'}</option>
+              {brands.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Warranty Filter */}
+          <div className="filter-select-wrapper">
+            <span className="filter-mini-label"><ShieldCheck size={12} /> {t('products.filterWarranty') || 'Warranty'}</span>
+            <select
+              value={warrantyStatus}
+              onChange={(e) => setWarrantyStatus(e.target.value)}
+              className="product-filter-select"
+            >
+              <option value="all">{t('products.allWarranties') || 'All Warranties'}</option>
+              <option value="active">🟢 {t('products.activeWarranty') || 'Active Coverage'}</option>
+              <option value="expiring_soon">🟠 {t('products.expiringSoonWarranty') || 'Expiring Soon (≤30d)'}</option>
+              <option value="expired">🔴 {t('products.expiredWarranty') || 'Expired Warranty'}</option>
+            </select>
+          </div>
+
+          {/* Return Window Filter */}
+          <div className="filter-select-wrapper">
+            <span className="filter-mini-label"><Clock size={12} /> {t('products.filterReturn') || 'Return Window'}</span>
+            <select
+              value={returnStatus}
+              onChange={(e) => setReturnStatus(e.target.value)}
+              className="product-filter-select"
+            >
+              <option value="all">{t('products.allReturns') || 'All Returns'}</option>
+              <option value="active">🟢 {t('products.activeReturn') || 'Active Return Window'}</option>
+              <option value="expired">🔴 {t('products.expiredReturn') || 'Return Window Closed'}</option>
+            </select>
+          </div>
+
+          {/* Maintenance Status Filter */}
+          <div className="filter-select-wrapper">
+            <span className="filter-mini-label"><Wrench size={12} /> {t('products.filterMaintenance') || 'Maintenance'}</span>
+            <select
+              value={maintenanceStatus}
+              onChange={(e) => setMaintenanceStatus(e.target.value)}
+              className="product-filter-select"
+            >
+              <option value="all">{t('products.allMaintenance') || 'All Maintenance'}</option>
+              <option value="due">🟠 {t('products.maintenanceDue') || 'Due Soon / Needs Attention'}</option>
+              <option value="overdue">🔴 {t('products.maintenanceOverdue') || 'Overdue Maintenance'}</option>
+              <option value="up_to_date">🟢 {t('products.maintenanceUpToDate') || 'Up to Date'}</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Active Filters Summary Bar */}
+        {hasActiveFilters && (
+          <div className="active-filters-bar">
+            <div className="active-filters-chips">
+              <span className="active-filters-title">{t('products.activeFilters') || 'Active Filters'}:</span>
+
+              {searchTerm && (
+                <span className="filter-chip">
+                  Search: "{searchTerm}"
+                  <button type="button" onClick={() => setSearchTerm('')}><X size={12} /></button>
+                </span>
+              )}
+
+              {selectedCategory !== 'All' && (
+                <span className="filter-chip">
+                  {selectedCategory}
+                  <button type="button" onClick={() => setSelectedCategory('All')}><X size={12} /></button>
+                </span>
+              )}
+
+              {selectedBrand !== 'All' && (
+                <span className="filter-chip">
+                  Brand: {selectedBrand}
+                  <button type="button" onClick={() => setSelectedBrand('All')}><X size={12} /></button>
+                </span>
+              )}
+
+              {warrantyStatus !== 'all' && (
+                <span className="filter-chip">
+                  Warranty: {warrantyStatus === 'active' ? 'Active' : warrantyStatus === 'expiring_soon' ? 'Expiring Soon' : 'Expired'}
+                  <button type="button" onClick={() => setWarrantyStatus('all')}><X size={12} /></button>
+                </span>
+              )}
+
+              {returnStatus !== 'all' && (
+                <span className="filter-chip">
+                  Return: {returnStatus === 'active' ? 'Active' : 'Closed'}
+                  <button type="button" onClick={() => setReturnStatus('all')}><X size={12} /></button>
+                </span>
+              )}
+
+              {maintenanceStatus !== 'all' && (
+                <span className="filter-chip">
+                  Maintenance: {maintenanceStatus === 'due' ? 'Due Soon' : maintenanceStatus === 'overdue' ? 'Overdue' : 'Up to date'}
+                  <button type="button" onClick={() => setMaintenanceStatus('all')}><X size={12} /></button>
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="reset-filters-btn"
+              onClick={handleResetFilters}
+            >
+              <RotateCcw size={13} />
+              {t('products.resetFilters') || 'Reset Filters'}
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Results Count Header */}
+      {!loading && (
+        <div className="product-results-header">
+          <span className="product-count-text">
+            {t('products.showingProducts', { count: products.length, plural: products.length === 1 ? '' : 's' }) ||
+              `Showing ${products.length} product${products.length === 1 ? '' : 's'}`}
+          </span>
+        </div>
+      )}
 
       {/* Main Content Area: Loading / Error / Empty / Grid */}
       {loading && products.length === 0 ? (
-        <LoadingState message="Loading your products..." description="Connecting to MongoDB..." />
+        <LoadingState message="Loading products..." description="Filtering MongoDB indexed vault records..." />
       ) : error ? (
         <ErrorState
           title="Could not load products"
@@ -186,17 +413,24 @@ export default function ProductList() {
         />
       ) : products.length === 0 ? (
         <EmptyState
-          title={searchTerm || selectedCategory !== 'All' ? 'No matching products found' : 'No products added yet'}
-          description={
-            searchTerm || selectedCategory !== 'All'
-              ? 'Try clearing your search terms or selecting a different category filter.'
-              : 'Get started by adding your first laptop, smartphone, or household appliance!'
+          title={
+            hasActiveFilters
+              ? (t('products.noFilteredProducts') || 'No products match your search or filters')
+              : (t('products.emptyTitle') || 'No products added yet')
           }
-          actionLabel={searchTerm || selectedCategory !== 'All' ? 'Clear Filters' : 'Add First Product'}
+          description={
+            hasActiveFilters
+              ? (t('products.noFilteredProductsDesc') || 'Try adjusting your search keywords, category selection, or clearing active filters.')
+              : (t('products.emptyDesc') || 'Get started by adding your first laptop, smartphone, or household appliance!')
+          }
+          actionLabel={
+            hasActiveFilters
+              ? (t('products.resetFilters') || 'Clear Filters')
+              : (t('products.addNewProduct') || 'Add First Product')
+          }
           onAction={() => {
-            if (searchTerm || selectedCategory !== 'All') {
-              setSearchTerm('');
-              setSelectedCategory('All');
+            if (hasActiveFilters) {
+              handleResetFilters();
             } else {
               handleOpenAdd();
             }
@@ -288,6 +522,7 @@ export default function ProductList() {
         initialProduct={editingProduct}
         onSuccess={() => {
           fetchProducts();
+          fetchBrands();
         }}
       />
 
@@ -297,6 +532,7 @@ export default function ProductList() {
         onClose={() => setIsScannerOpen(false)}
         onProductsSaved={() => {
           fetchProducts();
+          fetchBrands();
         }}
       />
     </PageContainer>

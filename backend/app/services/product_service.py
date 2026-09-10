@@ -1,8 +1,9 @@
 import logging
-from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+import re
+from datetime import datetime, timezone, timedelta
+from typing import Optional, List, Dict, Any, Set
 from bson import ObjectId
-from pymongo import ReturnDocument
+from pymongo import ReturnDocument, ASCENDING, DESCENDING
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.database import db_manager
@@ -89,12 +90,36 @@ class ProductService:
                 name="user_products_created_idx"
             )
             await self.collection.create_index(
-                [("userId", 1), ("category", 1)],
-                name="user_products_category_idx"
+                [("userId", 1), ("category", 1), ("brand", 1)],
+                name="user_products_category_brand_idx"
+            )
+            await self.collection.create_index(
+                [("userId", 1), ("brand", 1)],
+                name="user_products_brand_idx"
+            )
+            await self.collection.create_index(
+                [("userId", 1), ("name", 1)],
+                name="user_products_name_idx"
+            )
+            await self.collection.create_index(
+                [("userId", 1), ("model", 1)],
+                name="user_products_model_idx"
+            )
+            await self.collection.create_index(
+                [("userId", 1), ("serialNumber", 1)],
+                name="user_products_serial_idx"
             )
             logger.info("Product indexes ensured in MongoDB.")
         except Exception as exc:
             logger.warning(f"Could not create product indexes: {exc}")
+
+    async def get_user_brands(self, user_id: str) -> List[str]:
+        """
+        Retrieves unique product brands recorded by the authenticated user.
+        """
+        raw_brands = await self.collection.distinct("brand", {"userId": user_id})
+        clean_brands = {b.strip() for b in raw_brands if b and b.strip()}
+        return sorted(list(clean_brands))
 
     async def create_product(self, user_id: str, data: ProductCreate) -> ProductResponse:
         """
@@ -152,18 +177,32 @@ class ProductService:
         self,
         user_id: str,
         category: Optional[str] = None,
-        search: Optional[str] = None
+        brand: Optional[str] = None,
+        search: Optional[str] = None,
+        warranty_status: Optional[str] = None,
+        return_status: Optional[str] = None,
+        maintenance_status: Optional[str] = None,
+        sort_by: Optional[str] = "createdAt",
+        sort_order: Optional[str] = "desc"
     ) -> List[ProductResponse]:
         """
-        Retrieves all products belonging to the given user, with optional category filter & keyword search.
+        Retrieves all products belonging to the given user with multi-field search,
+        category, brand, warranty status, return period, and maintenance status filters.
+        Optimized with indexed queries and no unnecessary collection scans.
         """
         query: Dict[str, Any] = {"userId": user_id}
 
+        # 1. Category Filter
         if category and category.strip() and category != "All":
             query["category"] = category.strip()
 
+        # 2. Brand Filter
+        if brand and brand.strip() and brand != "All":
+            query["brand"] = {"$regex": f"^{re.escape(brand.strip())}$", "$options": "i"}
+
+        # 3. Multi-field Keyword Search (product name, brand, model, serial number)
         if search and search.strip():
-            term = search.strip()
+            term = re.escape(search.strip())
             query["$or"] = [
                 {"name": {"$regex": term, "$options": "i"}},
                 {"brand": {"$regex": term, "$options": "i"}},
@@ -172,7 +211,150 @@ class ProductService:
                 {"seller": {"$regex": term, "$options": "i"}}
             ]
 
-        cursor = self.collection.find(query).sort("createdAt", -1)
+        # 4. Warranty Status Filter
+        if warranty_status and warranty_status.lower() != "all":
+            w_col = self.db["warranties"]
+            today = datetime.now(timezone.utc).date()
+            today_str = today.isoformat()
+            exp_soon_threshold = (today + timedelta(days=30)).isoformat()
+
+            status_key = warranty_status.lower().strip()
+            if status_key == "active":
+                cursor = w_col.find({
+                    "userId": user_id,
+                    "expiryDate": {"$gt": exp_soon_threshold}
+                }, {"productId": 1})
+                active_pids = [doc["productId"] async for doc in cursor if doc.get("productId")]
+                valid_oids = [ObjectId(p) for p in active_pids if ObjectId.is_valid(p)]
+                query["_id"] = {"$in": valid_oids}
+
+            elif status_key == "expiring_soon":
+                cursor = w_col.find({
+                    "userId": user_id,
+                    "expiryDate": {"$gte": today_str, "$lte": exp_soon_threshold}
+                }, {"productId": 1})
+                expiring_pids = [doc["productId"] async for doc in cursor if doc.get("productId")]
+                valid_oids = [ObjectId(p) for p in expiring_pids if ObjectId.is_valid(p)]
+                query["_id"] = {"$in": valid_oids}
+
+            elif status_key == "expired":
+                # Find product IDs where all warranties are expired (< today) and none are active
+                active_cursor = w_col.find({
+                    "userId": user_id,
+                    "expiryDate": {"$gte": today_str}
+                }, {"productId": 1})
+                active_pids = {doc["productId"] async for doc in active_cursor if doc.get("productId")}
+
+                exp_cursor = w_col.find({
+                    "userId": user_id,
+                    "expiryDate": {"$lt": today_str}
+                }, {"productId": 1})
+                exp_pids = {doc["productId"] async for doc in exp_cursor if doc.get("productId")}
+
+                expired_only_pids = exp_pids - active_pids
+                valid_oids = [ObjectId(p) for p in expired_only_pids if ObjectId.is_valid(p)]
+                query["_id"] = {"$in": valid_oids}
+
+        # 5. Return Status Filter
+        if return_status and return_status.lower() != "all":
+            today_str = datetime.now(timezone.utc).date().isoformat()
+            ret_key = return_status.lower().strip()
+            if "$and" not in query:
+                query["$and"] = []
+
+            if ret_key == "active":
+                query["$and"].append({
+                    "$or": [
+                        {"returnDeadline": {"$gte": today_str}},
+                        {"returnStatus": "Active"}
+                    ]
+                })
+            elif ret_key == "expired":
+                query["$and"].append({
+                    "$or": [
+                        {"returnDeadline": {"$lt": today_str}},
+                        {"returnStatus": "Expired"}
+                    ]
+                })
+
+        # 6. Maintenance Status Filter
+        if maintenance_status and maintenance_status.lower() != "all":
+            m_col = self.db["maintenance_records"]
+            today = datetime.now(timezone.utc).date()
+            today_str = today.isoformat()
+            m_key = maintenance_status.lower().strip()
+
+            if m_key in ("due", "due_soon"):
+                week_later_str = (today + timedelta(days=7)).isoformat()
+                m_cursor = m_col.find({
+                    "userId": user_id,
+                    "status": {"$ne": "Completed"},
+                    "nextDueDate": {"$gte": today_str, "$lte": week_later_str}
+                }, {"productId": 1})
+                m_pids = [doc["productId"] async for doc in m_cursor if doc.get("productId")]
+                valid_oids = [ObjectId(p) for p in m_pids if ObjectId.is_valid(p)]
+
+                if "_id" in query and "$in" in query["_id"]:
+                    query["_id"]["$in"] = list(set(query["_id"]["$in"]) & set(valid_oids))
+                else:
+                    query["_id"] = {"$in": valid_oids}
+
+            elif m_key == "needs_attention":
+                week_later_str = (today + timedelta(days=7)).isoformat()
+                m_cursor = m_col.find({
+                    "userId": user_id,
+                    "status": {"$ne": "Completed"},
+                    "nextDueDate": {"$lte": week_later_str}
+                }, {"productId": 1})
+                m_pids = [doc["productId"] async for doc in m_cursor if doc.get("productId")]
+                valid_oids = [ObjectId(p) for p in m_pids if ObjectId.is_valid(p)]
+
+                if "_id" in query and "$in" in query["_id"]:
+                    query["_id"]["$in"] = list(set(query["_id"]["$in"]) & set(valid_oids))
+                else:
+                    query["_id"] = {"$in": valid_oids}
+
+            elif m_key == "overdue":
+                m_cursor = m_col.find({
+                    "userId": user_id,
+                    "status": {"$ne": "Completed"},
+                    "nextDueDate": {"$lt": today_str}
+                }, {"productId": 1})
+                m_pids = [doc["productId"] async for doc in m_cursor if doc.get("productId")]
+                valid_oids = [ObjectId(p) for p in m_pids if ObjectId.is_valid(p)]
+
+                if "_id" in query and "$in" in query["_id"]:
+                    query["_id"]["$in"] = list(set(query["_id"]["$in"]) & set(valid_oids))
+                else:
+                    query["_id"] = {"$in": valid_oids}
+
+            elif m_key == "up_to_date":
+                # Exclude products that have pending/overdue maintenance tasks
+                overdue_cursor = m_col.find({
+                    "userId": user_id,
+                    "status": {"$ne": "Completed"},
+                    "nextDueDate": {"$lte": today_str}
+                }, {"productId": 1})
+                overdue_pids = {doc["productId"] async for doc in overdue_cursor if doc.get("productId")}
+                overdue_oids = [ObjectId(p) for p in overdue_pids if ObjectId.is_valid(p)]
+                if overdue_oids:
+                    if "_id" in query and "$nin" in query["_id"]:
+                        query["_id"]["$nin"].extend(overdue_oids)
+                    else:
+                        query["_id"] = {"$nin": overdue_oids}
+
+        # 7. Sorting
+        valid_sort_fields = {
+            "createdAt": "createdAt",
+            "name": "name",
+            "price": "price",
+            "purchaseDate": "purchaseDate",
+            "brand": "brand"
+        }
+        db_sort_field = valid_sort_fields.get(sort_by, "createdAt")
+        direction = ASCENDING if str(sort_order).lower() == "asc" else DESCENDING
+
+        cursor = self.collection.find(query).sort(db_sort_field, direction)
         products = []
         async for doc in cursor:
             products.append(format_product_doc(doc))

@@ -41,23 +41,50 @@ async def create_product(
 
 
 @router.get(
+    "/brands",
+    response_model=List[str],
+    summary="Get user product brands",
+    description="Returns distinct product brands recorded in the user's vault."
+)
+async def list_user_brands(
+    current_user: UserResponse = Depends(get_current_user)
+) -> List[str]:
+    """
+    Returns unique brands registered by the authenticated user for dynamic filtering.
+    """
+    return await product_service.get_user_brands(user_id=current_user.id)
+
+
+@router.get(
     "/",
     response_model=List[ProductResponse],
-    summary="List all products for the current user",
-    description="Returns all products owned by the authenticated user with optional keyword search and category filtering."
+    summary="List and filter all products for the current user",
+    description="Returns all products owned by the authenticated user with multi-field search and backend filtering."
 )
 async def list_products(
+    search: Optional[str] = Query(None, description="Search term across name, brand, model, and serial number"),
     category: Optional[str] = Query(None, description="Filter by category (e.g. Mobile, Laptop, TV)"),
-    search: Optional[str] = Query(None, description="Search term for name, brand, model, serialNumber, seller"),
+    brand: Optional[str] = Query(None, description="Filter by brand"),
+    warrantyStatus: Optional[str] = Query(None, description="Filter by warranty status: active, expiring_soon, expired, all"),
+    returnStatus: Optional[str] = Query(None, description="Filter by return window: active, expired, all"),
+    maintenanceStatus: Optional[str] = Query(None, description="Filter by maintenance: due, overdue, up_to_date, all"),
+    sortBy: Optional[str] = Query("createdAt", description="Field to sort by: createdAt, name, price, purchaseDate, brand"),
+    sortOrder: Optional[str] = Query("desc", description="Sort direction: asc, desc"),
     current_user: UserResponse = Depends(get_current_user)
 ) -> List[ProductResponse]:
     """
-    Lists products strictly scoped to current_user.id.
+    Lists products strictly scoped to current_user.id with full server-side filtering and sorting.
     """
     return await product_service.get_user_products(
         user_id=current_user.id,
         category=category,
-        search=search
+        brand=brand,
+        search=search,
+        warranty_status=warrantyStatus,
+        return_status=returnStatus,
+        maintenance_status=maintenanceStatus,
+        sort_by=sortBy,
+        sort_order=sortOrder
     )
 
 
