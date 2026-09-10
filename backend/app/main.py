@@ -13,6 +13,7 @@ from app.services.product_service import product_service
 from app.services.document_service import document_service
 from app.services.warranty_service import warranty_service
 from app.services.notification_service import notification_service
+from app.services.timeline_service import timeline_service
 
 # Configure basic logging
 logging.basicConfig(
@@ -27,7 +28,7 @@ async def lifespan(app: FastAPI):
     """
     Manages the application lifecycle:
     - Connects to MongoDB on startup
-    - Ensures database indexes (users, products, documents, warranties, notifications)
+    - Ensures database indexes (users, products, documents, warranties, notifications, timeline)
     - Starts the local development background notification scheduler
     - Gracefully stops scheduler and disconnects MongoDB on shutdown
     """
@@ -42,8 +43,10 @@ async def lifespan(app: FastAPI):
         await document_service.ensure_indexes()
         await warranty_service.ensure_indexes()
         await notification_service.ensure_indexes()
+        await timeline_service.ensure_indexes()
         # Start notification scheduler
         notification_scheduler.start()
+
 
     yield
 

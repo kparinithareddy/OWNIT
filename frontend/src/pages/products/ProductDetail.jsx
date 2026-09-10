@@ -32,7 +32,8 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
-  Info
+  Info,
+  History
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -43,6 +44,8 @@ import ErrorState from '../../components/common/ErrorState';
 import ProductFormModal from '../../components/products/ProductFormModal';
 import DocumentUploadModal from '../../components/documents/DocumentUploadModal';
 import WarrantyFormModal from '../../components/warranty/WarrantyFormModal';
+import ProductLifecycleTimeline from '../../components/timeline/ProductLifecycleTimeline';
+
 import { productsApi, documentsApi, warrantiesApi } from '../../services/api';
 import './ProductDetail.css';
 
@@ -337,12 +340,19 @@ export default function ProductDetail() {
           <ShieldCheck size={16} /> Warranty Components ({warranties.length})
         </button>
         <button
+          className={`product-tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
+          onClick={() => setActiveTab('timeline')}
+        >
+          <History size={16} /> Lifecycle Timeline
+        </button>
+        <button
           className={`product-tab-btn ${activeTab === 'documents' ? 'active' : ''}`}
           onClick={() => setActiveTab('documents')}
         >
           <FileText size={16} /> Attached Documents ({documents.length})
         </button>
       </div>
+
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
@@ -627,8 +637,19 @@ export default function ProductDetail() {
         </Card>
       )}
 
-      {/* TAB 3: ATTACHED DOCUMENTS */}
+      {/* TAB 3: LIFECYCLE TIMELINE */}
+      {activeTab === 'timeline' && (
+        <Card
+          title="Product Lifecycle Timeline"
+          subtitle="Chronological events, return deadlines, warranty milestones, service records, and attached documents"
+        >
+          <ProductLifecycleTimeline productId={product.id} productName={product.name} />
+        </Card>
+      )}
+
+      {/* TAB 4: ATTACHED DOCUMENTS */}
       {activeTab === 'documents' && (
+
         <Card
           title={`Attached Documents (${documents.length})`}
           subtitle="Purchase invoices, warranty certificates, and manuals linked to this asset"

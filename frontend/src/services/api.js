@@ -99,10 +99,13 @@ export const productsApi = {
     return request(`/products/${queryStr}`, { method: 'GET' });
   },
   get: (id) => request(`/products/${id}`, { method: 'GET' }),
+  getTimeline: (id) => request(`/products/${id}/timeline`, { method: 'GET' }),
+  addTimelineEvent: (id, payload) => request(`/products/${id}/timeline`, { method: 'POST', body: payload }),
   create: (payload) => request('/products/', { method: 'POST', body: payload }),
   update: (id, payload) => request(`/products/${id}`, { method: 'PUT', body: payload }),
   delete: (id) => request(`/products/${id}`, { method: 'DELETE' })
 };
+
 
 // Document Management API methods
 export const documentsApi = {

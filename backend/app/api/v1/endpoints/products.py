@@ -8,8 +8,15 @@ from app.schemas.product import (
     ProductResponse,
     ProductListResponse
 )
+from app.schemas.timeline import (
+    TimelineEvent,
+    TimelineEventCreate,
+    TimelineResponse
+)
 from app.api.dependencies import get_current_user
 from app.services.product_service import product_service
+from app.services.timeline_service import timeline_service
+
 
 router = APIRouter()
 
@@ -104,3 +111,32 @@ async def delete_product(
         "message": "Product successfully deleted.",
         "productId": product_id
     }
+
+
+@router.get(
+    "/{product_id}/timeline",
+    response_model=TimelineResponse,
+    summary="Get product lifecycle timeline",
+    description="Retrieves the full chronological lifecycle timeline computed from purchase, return windows, warranty milestones, documents, and service logs."
+)
+async def get_product_timeline(
+    product_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+) -> TimelineResponse:
+    return await timeline_service.get_product_timeline(product_id, current_user.id)
+
+
+@router.post(
+    "/{product_id}/timeline",
+    response_model=TimelineEvent,
+    status_code=status.HTTP_201_CREATED,
+    summary="Log custom lifecycle event",
+    description="Adds a service, maintenance, repair, or custom milestone to the product lifecycle timeline."
+)
+async def add_lifecycle_event(
+    product_id: str,
+    data: TimelineEventCreate,
+    current_user: UserResponse = Depends(get_current_user)
+) -> TimelineEvent:
+    return await timeline_service.add_custom_lifecycle_event(product_id, current_user.id, data)
+
