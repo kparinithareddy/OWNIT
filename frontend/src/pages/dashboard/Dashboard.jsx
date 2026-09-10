@@ -34,7 +34,7 @@ import ProductFormModal from '../../components/products/ProductFormModal';
 import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import Modal from '../../components/common/Modal';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
-import { productsApi } from '../../services/api';
+import { productsApi, warrantiesApi } from '../../services/api';
 import './Dashboard.css';
 
 // Helper to pick category icon
@@ -57,6 +57,13 @@ function getCategoryIcon(cat) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
+  const [warranties, setWarranties] = useState([]);
+  const [warrantySummary, setWarrantySummary] = useState({
+    totalWarranties: 0,
+    active: 0,
+    expiringSoon: 0,
+    expired: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -69,14 +76,20 @@ export default function Dashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
-  const fetchProducts = async () => {
+  const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await productsApi.list();
-      setProducts(data);
+      const [prodData, wList, wSum] = await Promise.all([
+        productsApi.list(),
+        warrantiesApi.list(),
+        warrantiesApi.getSummary()
+      ]);
+      setProducts(prodData);
+      setWarranties(wList);
+      setWarrantySummary(wSum);
     } catch (err) {
-      console.error('Error fetching dashboard products:', err);
+      console.error('Error fetching dashboard data:', err);
       setError(err.message || 'Failed to connect to backend.');
     } finally {
       setLoading(false);
@@ -84,7 +97,7 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchDashboardData();
   }, []);
 
   // Compute unique brands from current user's products
@@ -97,6 +110,23 @@ export default function Dashboard() {
     });
     return ['All', ...Array.from(brands).sort()];
   }, [products]);
+
+  // Product ID to warranty components map
+  const productWarrantyMap = useMemo(() => {
+    const map = {};
+    warranties.forEach((w) => {
+      if (!map[w.productId]) {
+        map[w.productId] = [];
+      }
+      map[w.productId].push(w);
+    });
+    return map;
+  }, [warranties]);
+
+  // Expiring soon items
+  const expiringSoonItems = useMemo(() => {
+    return warranties.filter((w) => w.status === 'Expiring Soon');
+  }, [warranties]);
 
   // Filter products client-side for immediate responsive search/brand/category filtering
   const filteredProducts = useMemo(() => {
@@ -127,7 +157,7 @@ export default function Dashboard() {
   return (
     <PageContainer
       title="Dashboard Overview"
-      subtitle="Track your physical assets, active warranties, and upcoming expiration deadlines."
+      subtitle="Track your physical assets, multi-component warranties, and upcoming expiration deadlines."
       actions={
         <div className="dashboard-top-actions">
           <Button
@@ -158,21 +188,21 @@ export default function Dashboard() {
         />
         <StatCard
           title="Active Warranties"
-          value={loading ? '...' : '0'}
-          subtitle="🟢 Active (Pending Warranty Sync)"
+          value={loading ? '...' : String(warrantySummary.active)}
+          subtitle="🟢 Active & protected"
           icon={ShieldCheck}
           variant="success"
         />
         <StatCard
           title="Expiring Soon"
-          value="0"
+          value={loading ? '...' : String(warrantySummary.expiringSoon)}
           subtitle="🟠 Expiring within 30 days"
           icon={Clock}
           variant="warning"
         />
         <StatCard
           title="Expired"
-          value="0"
+          value={loading ? '...' : String(warrantySummary.expired)}
           subtitle="🔴 Out of coverage"
           icon={ShieldAlert}
           variant="danger"
@@ -185,17 +215,59 @@ export default function Dashboard() {
         subtitle="Monitors deadlines requiring attention in the next 30 days"
         className="expiring-section-card"
       >
-        <div className="expiring-placeholder-box">
-          <div className="expiring-placeholder-icon">
-            <Clock size={28} />
+        {expiringSoonItems.length === 0 ? (
+          <div className="expiring-placeholder-box">
+            <div className="expiring-placeholder-icon">
+              <Clock size={28} />
+            </div>
+            <div className="expiring-placeholder-text">
+              <h4 className="expiring-placeholder-title">No Warranties Expiring Soon</h4>
+              <p className="expiring-placeholder-desc">
+                All your registered products are in good standing. When components have 30 or fewer days remaining, active alerts will appear here.
+              </p>
+            </div>
           </div>
-          <div className="expiring-placeholder-text">
-            <h4 className="expiring-placeholder-title">No Warranties Expiring Soon</h4>
-            <p className="expiring-placeholder-desc">
-              All your products are currently in good standing. When receipts and warranty durations are linked, automated countdown alerts will appear here.
-            </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {expiringSoonItems.map((w) => {
+              const prod = products.find((p) => p.id === w.productId);
+              return (
+                <div
+                  key={w.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <ShieldAlert size={22} color="#f59e0b" />
+                    <div>
+                      <h5 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>
+                        {prod ? prod.name : 'Linked Product'} — {w.type}
+                      </h5>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                        Provider: <strong>{w.provider}</strong> &bull; Expires on: <strong>{w.expiryDate}</strong> ({w.daysRemaining} days remaining)
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/products/${w.productId}`)}
+                  >
+                    View Warranty
+                  </Button>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </Card>
 
       {/* 3. Search & Filter Bar */}
@@ -273,7 +345,7 @@ export default function Dashboard() {
           <div className="dashboard-error-box">
             <AlertCircle size={24} color="var(--danger)" />
             <p>{error}</p>
-            <Button variant="outline" size="sm" onClick={fetchProducts}>
+            <Button variant="outline" size="sm" onClick={fetchDashboardData}>
               Retry
             </Button>
           </div>
@@ -325,6 +397,21 @@ export default function Dashboard() {
           <div className="dashboard-product-grid">
             {filteredProducts.map((product) => {
               const IconComponent = getCategoryIcon(product.category);
+              const pWarranties = productWarrantyMap[product.id] || [];
+              const hasExpiring = pWarranties.some((w) => w.status === 'Expiring Soon');
+              const hasActive = pWarranties.some((w) => w.status === 'Active');
+              const allExpired = pWarranties.length > 0 && pWarranties.every((w) => w.status === 'Expired');
+
+              let warrantyBadgeLabel = 'No Warranty';
+              let warrantyBadgeColor = 'neutral';
+              if (hasExpiring) {
+                warrantyBadgeLabel = '🟠 Expiring Soon';
+              } else if (hasActive) {
+                warrantyBadgeLabel = '🟢 Active';
+              } else if (allExpired) {
+                warrantyBadgeLabel = '🔴 Expired';
+              }
+
               return (
                 <Card
                   key={product.id}
@@ -355,9 +442,8 @@ export default function Dashboard() {
 
                     <div className="item-badges-column">
                       <span className="category-pill">{product.category}</span>
-                      {/* Warranty Status Placeholder */}
                       <span className="warranty-status-pill" title="Warranty Status">
-                        🟢 Active (Pending Doc)
+                        {warrantyBadgeLabel}
                       </span>
                     </div>
                   </div>
@@ -389,8 +475,8 @@ export default function Dashboard() {
                       )}
                     </div>
                     <div className="life-score-placeholder" title="Product Life Score">
-                      <span className="score-label">Life Score:</span>
-                      <span className="score-badge">Pending</span>
+                      <span className="score-label">Components:</span>
+                      <span className="score-badge">{pWarranties.length}</span>
                     </div>
                   </div>
                 </Card>
@@ -405,7 +491,7 @@ export default function Dashboard() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={() => {
-          fetchProducts();
+          fetchDashboardData();
         }}
       />
 
@@ -414,7 +500,7 @@ export default function Dashboard() {
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
         onProductsSaved={() => {
-          fetchProducts();
+          fetchDashboardData();
         }}
       />
     </PageContainer>

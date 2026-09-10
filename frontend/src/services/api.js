@@ -138,3 +138,20 @@ export const ocrApi = {
   scan: (formData) => request('/ocr/scan', { method: 'POST', body: formData }),
   confirm: (payload) => request('/ocr/confirm', { method: 'POST', body: payload })
 };
+
+// Warranty Management API methods
+export const warrantiesApi = {
+  list: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.productId && params.productId !== 'All') query.append('productId', params.productId);
+    if (params.status && params.status !== 'All') query.append('status', params.status);
+    const queryStr = query.toString() ? `?${query.toString()}` : '';
+    return request(`/warranties/${queryStr}`, { method: 'GET' });
+  },
+  get: (id) => request(`/warranties/${id}`, { method: 'GET' }),
+  getByProduct: (productId) => request(`/warranties/product/${productId}`, { method: 'GET' }),
+  getSummary: () => request('/warranties/summary', { method: 'GET' }),
+  create: (payload) => request('/warranties/', { method: 'POST', body: payload }),
+  update: (id, payload) => request(`/warranties/${id}`, { method: 'PUT', body: payload }),
+  delete: (id) => request(`/warranties/${id}`, { method: 'DELETE' })
+};

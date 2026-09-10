@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, auth, products, documents, ocr
+from app.api.v1.endpoints import health, auth, products, documents, ocr, warranties
 
 api_v1_router = APIRouter()
 
@@ -9,3 +9,4 @@ api_v1_router.include_router(auth.router, prefix="/auth", tags=["Authentication"
 api_v1_router.include_router(products.router, prefix="/products", tags=["Products"])
 api_v1_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 api_v1_router.include_router(ocr.router, prefix="/ocr", tags=["Receipt OCR"])
+api_v1_router.include_router(warranties.router, prefix="/warranties", tags=["Warranty Management"])
