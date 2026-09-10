@@ -26,7 +26,8 @@ import {
   Tag,
   RotateCcw,
   Activity,
-  TrendingUp
+  TrendingUp,
+  AlertTriangle
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card, { StatCard } from '../../components/common/Card';
@@ -37,7 +38,7 @@ import ProductFormModal from '../../components/products/ProductFormModal';
 import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import Modal from '../../components/common/Modal';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
-import { productsApi, warrantiesApi } from '../../services/api';
+import { productsApi, warrantiesApi, recallsApi } from '../../services/api';
 import './Dashboard.css';
 
 // Helper to pick category icon
@@ -62,6 +63,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState([]);
   const [warranties, setWarranties] = useState([]);
   const [lifeScoreMap, setLifeScoreMap] = useState({});
+  const [vaultRecalls, setVaultRecalls] = useState([]);
   const [warrantySummary, setWarrantySummary] = useState({
     totalWarranties: 0,
     active: 0,
@@ -84,14 +86,16 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError(null);
-      const [prodData, wList, wSum] = await Promise.all([
+      const [prodData, wList, wSum, recallData] = await Promise.all([
         productsApi.list(),
         warrantiesApi.list(),
-        warrantiesApi.getSummary()
+        warrantiesApi.getSummary(),
+        recallsApi.vaultScan().catch(() => ({ alerts: [] }))
       ]);
       setProducts(prodData);
       setWarranties(wList);
       setWarrantySummary(wSum);
+      setVaultRecalls(recallData?.alerts || []);
 
       // Async fetch life scores for products in parallel
       if (prodData && prodData.length > 0) {
@@ -208,6 +212,49 @@ export default function Dashboard() {
         </div>
       }
     >
+      {/* Safety Recall Alert Banner (if any vault alerts found) */}
+      {vaultRecalls.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            padding: '1rem 1.25rem',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.1))',
+            border: '1px solid rgba(245, 158, 11, 0.4)',
+            borderLeft: '4px solid #f59e0b',
+            borderRadius: '8px',
+            marginBottom: '1.5rem',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <AlertTriangle size={24} style={{ color: '#f59e0b', flexShrink: 0 }} />
+            <div>
+              <strong style={{ color: '#fbbf24', fontSize: '0.95rem' }}>
+                Safety Advisory: {vaultRecalls.length} product{vaultRecalls.length > 1 ? 's have' : ' has'} a possible recall match.
+              </strong>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Possible recall match — verify with the official source. Click on affected assets to view verified bulletins.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {vaultRecalls.map((alert) => (
+              <Button
+                key={alert.productId}
+                size="xs"
+                variant="outline"
+                onClick={() => navigate(`/products/${alert.productId}`)}
+              >
+                {alert.brand} {alert.model || alert.productName}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 1. Summary Cards (4 Cards) */}
       <div className="dashboard-stats-grid">
         <StatCard

@@ -244,6 +244,25 @@ export default {
     reviews: 'reviews',
     noAccessories: 'No accessories matching your budget and category filters.',
     clearFilters: 'Clear Filters'
+  },
+  recalls: {
+    title: 'Safety Recalls & Bulletins',
+    subtitle: 'Cross-referenced against verified manufacturer safety programs and official regulatory databases.',
+    possibleMatch: 'Possible recall match — verify with the official source.',
+    noRecallsFound: 'No Active Recalls Found',
+    cleanDescription: 'No manufacturer safety bulletins or recall notices found for this model.',
+    warningBadge: 'Possible Recall Match',
+    severity: 'Severity',
+    affectedModel: 'Affected Model',
+    serialRange: 'Affected Serial Range',
+    serialMatched: 'Serial Number Matched',
+    serialNotMatched: 'Serial Not in Range',
+    serialUnverified: 'Serial Unverified',
+    hazard: 'Potential Hazard',
+    recommendedAction: 'Recommended Action',
+    officialSource: 'Official Source',
+    verifyWithSource: 'Verify on Official Source',
+    disclaimer: 'Advisory notice based on published manufacturer bulletins. Always verify eligibility with the official manufacturer source.'
   }
 };
 

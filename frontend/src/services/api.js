@@ -230,6 +230,12 @@ export const accessoriesApi = {
   getCategories: (productId) => request(`/accessories/categories?productId=${productId}`, { method: 'GET' })
 };
 
+// Safety & Recall Alerts API methods
+export const recallsApi = {
+  checkProduct: (productId) => request(`/safety-recalls/check/${productId}`, { method: 'GET' }),
+  vaultScan: () => request('/safety-recalls/vault-scan', { method: 'GET' })
+};
+
 
 
 

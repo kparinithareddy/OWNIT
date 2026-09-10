@@ -62,6 +62,7 @@ import WarrantyIntelligenceCard from '../../components/warranty/WarrantyIntellig
 import WarrantyClaimAssistantModal from '../../components/claim/WarrantyClaimAssistantModal';
 import ServiceFormModal from '../../components/service/ServiceFormModal';
 import ServiceHistoryList from '../../components/service/ServiceHistoryList';
+import SafetyRecallCard from '../../components/safety/SafetyRecallCard';
 import { productsApi, documentsApi, warrantiesApi, maintenanceApi, servicesApi, accessoriesApi } from '../../services/api';
 
 import './ProductDetail.css';
@@ -587,17 +588,23 @@ export default function ProductDetail() {
               </div>
             )}
           </Card>
+
+          {/* SAFETY RECALL & BULLETINS ADVISORY */}
+          <SafetyRecallCard product={product} />
         </div>
       )}
 
 
       {/* TAB: WARRANTY INTELLIGENCE */}
       {activeTab === 'intelligence' && (
-        <WarrantyIntelligenceCard
-          product={product}
-          warranties={warranties}
-          documents={documents}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <SafetyRecallCard product={product} />
+          <WarrantyIntelligenceCard
+            product={product}
+            warranties={warranties}
+            documents={documents}
+          />
+        </div>
       )}
 
       {/* TAB: SERVICE HISTORY */}

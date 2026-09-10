@@ -12,7 +12,8 @@ from app.api.v1.endpoints import (
     warranty_intelligence,
     claim_assistant,
     service_history,
-    accessories
+    accessories,
+    safety_recalls
 )
 
 api_v1_router = APIRouter()
@@ -28,6 +29,7 @@ api_v1_router.include_router(notifications.router, prefix="/notifications", tags
 api_v1_router.include_router(maintenance.router, prefix="/maintenance", tags=["Product Maintenance"])
 api_v1_router.include_router(service_history.router, prefix="/services", tags=["Service History"])
 api_v1_router.include_router(accessories.router, prefix="/accessories", tags=["Accessories & Compatibility"])
+api_v1_router.include_router(safety_recalls.router, prefix="/safety-recalls", tags=["Safety Recalls & Bulletins"])
 api_v1_router.include_router(ai.router, prefix="/ai", tags=["Local AI (Ollama)"])
 api_v1_router.include_router(warranty_intelligence.router, prefix="/warranty-intelligence", tags=["Warranty Intelligence"])
 api_v1_router.include_router(claim_assistant.router, prefix="/claim-assistant", tags=["Warranty Claim Assistant"])
