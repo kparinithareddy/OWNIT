@@ -40,7 +40,10 @@ import {
   Activity,
   TrendingUp,
   Bot,
-  FileSignature
+  FileSignature,
+  PlugZap,
+  Star,
+  ExternalLink
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -59,7 +62,8 @@ import WarrantyIntelligenceCard from '../../components/warranty/WarrantyIntellig
 import WarrantyClaimAssistantModal from '../../components/claim/WarrantyClaimAssistantModal';
 import ServiceFormModal from '../../components/service/ServiceFormModal';
 import ServiceHistoryList from '../../components/service/ServiceHistoryList';
-import { productsApi, documentsApi, warrantiesApi, maintenanceApi, servicesApi } from '../../services/api';
+import { productsApi, documentsApi, warrantiesApi, maintenanceApi, servicesApi, accessoriesApi } from '../../services/api';
+
 import './ProductDetail.css';
 
 function getCategoryIcon(cat) {
@@ -96,11 +100,12 @@ export default function ProductDetail() {
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [serviceRecords, setServiceRecords] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
+  const [accessories, setAccessories] = useState([]);
   const [lifeScore, setLifeScore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Active tab: 'overview' | 'lifescore' | 'warranties' | 'maintenance' | 'service' | 'timeline' | 'documents'
+  // Active tab: 'overview' | 'lifescore' | 'warranties' | 'maintenance' | 'service' | 'accessories' | 'timeline' | 'documents'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Modals state
@@ -119,13 +124,14 @@ export default function ProductDetail() {
     try {
       setLoading(true);
       setError(null);
-      const [prodData, docsData, warrantiesData, maintData, srvData, recsData, scoreData] = await Promise.all([
+      const [prodData, docsData, warrantiesData, maintData, srvData, recsData, accData, scoreData] = await Promise.all([
         productsApi.get(id),
         documentsApi.list({ productId: id }),
         warrantiesApi.getByProduct(id),
         maintenanceApi.listByProduct(id),
         servicesApi.listByProduct(id).catch(() => []),
         maintenanceApi.getRecommendations(id),
+        accessoriesApi.getRecommendations({ productId: id }).catch(() => ({ recommendations: [] })),
         productsApi.getLifeScore(id).catch((e) => {
           console.warn('Could not load life score:', e);
           return null;
@@ -137,6 +143,7 @@ export default function ProductDetail() {
       setMaintenanceRecords(maintData);
       setServiceRecords(srvData);
       setRecommendations(recsData);
+      setAccessories(accData?.recommendations || []);
       setLifeScore(scoreData);
     } catch (err) {
       console.error('Error fetching product details:', err);
@@ -462,6 +469,12 @@ export default function ProductDetail() {
           <Sparkles size={16} /> Maintenance & Care ({maintenanceRecords.length})
         </button>
         <button
+          className={`product-tab-btn ${activeTab === 'accessories' ? 'active' : ''}`}
+          onClick={() => setActiveTab('accessories')}
+        >
+          <PlugZap size={16} /> Accessories ({accessories.length})
+        </button>
+        <button
           className={`product-tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
           onClick={() => setActiveTab('timeline')}
         >
@@ -474,6 +487,109 @@ export default function ProductDetail() {
           <FileText size={16} /> Attached Documents ({documents.length})
         </button>
       </div>
+
+      {/* TAB: COMPATIBLE ACCESSORIES */}
+      {activeTab === 'accessories' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <Card
+            title={`Compatible Accessories for ${product.brand} ${product.name}`}
+            subtitle={`Grounded in verified compatibility specifications for Model: ${product.model || 'Standard'}`}
+            action={
+              <Link to={`/accessories?productId=${product.id}`}>
+                <Button variant="primary" size="sm" icon={ExternalLink}>
+                  Open Full Accessories Studio
+                </Button>
+              </Link>
+            }
+          >
+            {accessories.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+                <PlugZap size={36} color="var(--text-muted)" style={{ marginBottom: '8px' }} />
+                <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+                  No compatible accessories cataloged yet for this product category.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                {accessories.map((acc) => {
+                  const isCompat = acc.compatibilityStatus === 'Compatible';
+                  return (
+                    <div
+                      key={acc.id}
+                      style={{
+                        padding: '16px',
+                        borderRadius: 'var(--radius-md)',
+                        backgroundColor: 'var(--bg-surface-secondary)',
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase' }}>
+                            {acc.category}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.6875rem',
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: isCompat ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                              color: isCompat ? '#059669' : '#d97706'
+                            }}
+                          >
+                            {isCompat ? '✓ Compatible' : 'ℹ Potentially compatible'}
+                          </span>
+                        </div>
+                        <h5 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 6px 0' }}>
+                          {acc.name}
+                        </h5>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                          {acc.compatibilityReason}
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
+                        <div>
+                          <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                            {acc.priceFormatted}
+                          </span>
+                          <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                            {acc.platform}
+                          </div>
+                        </div>
+                        {acc.sourceUrl && (
+                          <a
+                            href={acc.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: 'var(--primary)',
+                              textDecoration: 'none',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>Open Source</span>
+                            <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
 
       {/* TAB: WARRANTY INTELLIGENCE */}
       {activeTab === 'intelligence' && (

@@ -226,5 +226,24 @@ export default {
     unreadOnly: 'Unread Only',
     emptyTitle: 'No Notifications',
     emptyDesc: 'You are all caught up! Expiration alerts and maintenance reminders will appear here.'
+  },
+  accessories: {
+    title: 'Compatible Accessories & Upgrades',
+    subtitle: 'Smart recommendations for mounts, cables, soundbars, and power accessories grounded in your device model.',
+    selectProduct: 'Select Target Product',
+    budgetFilter: 'Budget Filter',
+    allBudgets: 'All Budgets',
+    categoryFilter: 'Category Filter',
+    allCategories: 'All Categories',
+    compatible: 'Compatible',
+    potentiallyCompatible: 'Potentially compatible',
+    evidence: 'Compatibility Evidence',
+    viewSource: 'View at {platform}',
+    openSource: 'Open Source',
+    rating: 'Rating',
+    reviews: 'reviews',
+    noAccessories: 'No accessories matching your budget and category filters.',
+    clearFilters: 'Clear Filters'
   }
 };
+

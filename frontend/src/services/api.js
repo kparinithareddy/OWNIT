@@ -217,6 +217,20 @@ export const servicesApi = {
   delete: (id) => request(`/services/${id}`, { method: 'DELETE' })
 };
 
+// Compatible Accessory Recommendations API methods
+export const accessoriesApi = {
+  getRecommendations: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.productId) query.append('productId', params.productId);
+    if (params.category && params.category !== 'All') query.append('category', params.category);
+    if (params.minBudget !== undefined && params.minBudget !== null && params.minBudget !== '') query.append('minBudget', params.minBudget);
+    if (params.maxBudget !== undefined && params.maxBudget !== null && params.maxBudget !== '') query.append('maxBudget', params.maxBudget);
+    return request(`/accessories/recommendations?${query.toString()}`, { method: 'GET' });
+  },
+  getCategories: (productId) => request(`/accessories/categories?productId=${productId}`, { method: 'GET' })
+};
+
+
 
 
 

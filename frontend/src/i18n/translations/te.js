@@ -226,5 +226,24 @@ export default {
     unreadOnly: 'చదవనివి మాత్రమే',
     emptyTitle: 'నోటిఫికేషన్‌లు లేవు',
     emptyDesc: 'అన్నీ నవీకరించబడ్డాయి! వారంటీ హెచ్చరికలు మరియు నిర్వహణ రిమైండర్‌లు ఇక్కడ కనిపిస్తాయి.'
+  },
+  accessories: {
+    title: 'అనుకూల యాక్సెసరీస్ & అప్‌గ్రేడ్‌లు',
+    subtitle: 'మీ పరికర మోడల్ కోసం వాల్ మౌంట్లు, కేబుల్స్, సౌండ్‌బార్‌లు మరియు పవర్ యాక్సెసరీల కోసం సిఫార్సులు.',
+    selectProduct: 'లక్ష్య ఉత్పత్తిని ఎంచుకోండి',
+    budgetFilter: 'బడ్జెట్ ఫిల్టర్',
+    allBudgets: 'అన్ని బడ్జెట్‌లు',
+    categoryFilter: 'వర్గం ఫిల్టర్',
+    allCategories: 'అన్ని వర్గాలు',
+    compatible: 'అనుకూలమైనది (Compatible)',
+    potentiallyCompatible: 'సాధ్యమైన అనుకూలత (Potentially compatible)',
+    evidence: 'అనుకూలత ఆధారాలు',
+    viewSource: '{platform} వద్ద చూడండి',
+    openSource: 'మూలాన్ని తెరవండి',
+    rating: 'రేటింగ్',
+    reviews: 'సమీక్షలు',
+    noAccessories: 'మీ బడ్జెట్ మరియు వర్గం ఫిల్టర్‌లకు సరిపోయే యాక్సెసరీస్ లేవు.',
+    clearFilters: 'ఫిల్టర్‌లను క్లియర్ చేయండి'
   }
 };
+

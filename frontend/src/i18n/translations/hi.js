@@ -226,5 +226,24 @@ export default {
     unreadOnly: 'केवल अपठित',
     emptyTitle: 'कोई सूचना नहीं',
     emptyDesc: 'सब कुछ अप-टू-डेट है! वारंटी अलर्ट और रखरखाव अनुस्मारक यहाँ दिखाई देंगे।'
+  },
+  accessories: {
+    title: 'अनुकूल एक्सेसरीज़ और अपग्रेड्स',
+    subtitle: 'आपके डिवाइस मॉडल के लिए दीवार माउंट, केबल, साउंडबार और पावर एक्सेसरीज़ के लिए स्मार्ट सुझाव।',
+    selectProduct: 'लक्षित उत्पाद चुनें',
+    budgetFilter: 'बजट फ़िल्टर',
+    allBudgets: 'सभी बजट',
+    categoryFilter: 'श्रेणी फ़िल्टर',
+    allCategories: 'सभी श्रेणियां',
+    compatible: 'अनुकूल (Compatible)',
+    potentiallyCompatible: 'संभावित अनुकूल (Potentially compatible)',
+    evidence: 'अनुकूलता साक्ष्य',
+    viewSource: '{platform} पर देखें',
+    openSource: 'मूल स्रोत खोलें',
+    rating: 'रेटिंग',
+    reviews: 'समीक्षाएं',
+    noAccessories: 'आपके बजट और श्रेणी फ़िल्टर से मेल खाने वाली कोई एक्सेसरी नहीं मिली।',
+    clearFilters: 'फ़िल्टर साफ़ करें'
   }
 };
+
