@@ -31,6 +31,7 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import LoadingState from '../../components/common/LoadingState';
 import ProductFormModal from '../../components/products/ProductFormModal';
+import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import Modal from '../../components/common/Modal';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
 import { productsApi } from '../../services/api';
@@ -408,27 +409,14 @@ export default function Dashboard() {
         }}
       />
 
-      {/* Placeholder Modal: Scan Receipt (OCR) */}
-      <Modal
+      {/* Interactive Receipt OCR Confirmation Modal */}
+      <ReceiptScannerModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
-        title="Scan Receipt with Tesseract OCR"
-        subtitle="Extract multiple items and warranty dates automatically"
-      >
-        <div style={{ textAlign: 'center', padding: '24px 0' }}>
-          <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <FileText size={32} />
-          </div>
-          <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Drag & Drop Receipt / Invoice</h4>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Supports PDF, PNG, JPG (Processed completely locally with Tesseract OCR)
-          </p>
-          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
-            <Button variant="outline" onClick={() => setIsScanModalOpen(false)}>Browse Files</Button>
-            <Button variant="primary" onClick={() => setIsScanModalOpen(false)}>Simulate OCR Extract</Button>
-          </div>
-        </div>
-      </Modal>
+        onProductsSaved={() => {
+          fetchProducts();
+        }}
+      />
     </PageContainer>
   );
 }

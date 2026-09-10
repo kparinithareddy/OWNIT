@@ -11,7 +11,8 @@ import {
   Layers,
   FileCheck2,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -21,6 +22,7 @@ import LoadingState from '../../components/common/LoadingState';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorState from '../../components/common/ErrorState';
 import DocumentUploadModal from '../../components/documents/DocumentUploadModal';
+import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import { DOCUMENT_TYPES } from '../../data/documentTypes';
 import { documentsApi, productsApi } from '../../services/api';
 import './Documents.css';
@@ -56,6 +58,7 @@ export default function Documents() {
 
   // Modal
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [actionDocId, setActionDocId] = useState(null);
 
   const fetchDocuments = useCallback(async () => {
@@ -142,13 +145,22 @@ export default function Documents() {
       title="Document Vault"
       subtitle="Safely store, organize, and view your purchase bills, warranty cards, and user manuals."
       actions={
-        <Button
-          variant="primary"
-          icon={UploadCloud}
-          onClick={() => setIsUploadModalOpen(true)}
-        >
-          Upload Document
-        </Button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <Button
+            variant="outline"
+            icon={<Sparkles size={16} />}
+            onClick={() => setIsScannerOpen(true)}
+          >
+            Scan Receipt (OCR)
+          </Button>
+          <Button
+            variant="primary"
+            icon={UploadCloud}
+            onClick={() => setIsUploadModalOpen(true)}
+          >
+            Upload Document
+          </Button>
+        </div>
       }
     >
       {/* OCR & Upload Dropzone Banner */}
@@ -316,6 +328,15 @@ export default function Documents() {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onSuccess={() => {
+          fetchDocuments();
+        }}
+      />
+
+      {/* Receipt OCR Modal */}
+      <ReceiptScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onProductsSaved={() => {
           fetchDocuments();
         }}
       />

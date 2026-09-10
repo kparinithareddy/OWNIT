@@ -29,6 +29,7 @@ import LoadingState from '../../components/common/LoadingState';
 import EmptyState from '../../components/common/EmptyState';
 import ErrorState from '../../components/common/ErrorState';
 import ProductFormModal from '../../components/products/ProductFormModal';
+import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
 import { productsApi } from '../../services/api';
 import './ProductList.css';
@@ -61,6 +62,7 @@ export default function ProductList() {
 
   // Modals state
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [deletingProductId, setDeletingProductId] = useState(null);
 
@@ -124,13 +126,22 @@ export default function ProductList() {
       title="My Products & Assets"
       subtitle="Catalog, manage, and track all your physical items securely."
       actions={
-        <Button
-          variant="primary"
-          icon={Plus}
-          onClick={handleOpenAdd}
-        >
-          Add Product
-        </Button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <Button
+            variant="outline"
+            icon={<Sparkles size={16} />}
+            onClick={() => setIsScannerOpen(true)}
+          >
+            Scan Receipt
+          </Button>
+          <Button
+            variant="primary"
+            icon={<Plus size={16} />}
+            onClick={handleOpenAdd}
+          >
+            Add Product
+          </Button>
+        </div>
       }
     >
       {/* Search & Category Filter Toolbar */}
@@ -276,6 +287,15 @@ export default function ProductList() {
         onClose={() => setIsFormModalOpen(false)}
         initialProduct={editingProduct}
         onSuccess={() => {
+          fetchProducts();
+        }}
+      />
+
+      {/* Receipt OCR Confirmation Modal */}
+      <ReceiptScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onProductsSaved={() => {
           fetchProducts();
         }}
       />

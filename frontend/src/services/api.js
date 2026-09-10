@@ -132,3 +132,9 @@ export const documentsApi = {
     return objectUrl;
   }
 };
+
+// Receipt OCR API methods
+export const ocrApi = {
+  scan: (formData) => request('/ocr/scan', { method: 'POST', body: formData }),
+  confirm: (payload) => request('/ocr/confirm', { method: 'POST', body: payload })
+};
