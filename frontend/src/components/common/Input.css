@@ -1,8 +1,8 @@
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
 }
 
 .input-full-width {
@@ -10,13 +10,17 @@
 }
 
 .input-label {
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .input-required {
   color: var(--danger);
+  font-weight: var(--font-weight-bold);
 }
 
 .input-wrapper {
@@ -28,14 +32,15 @@
 
 .input-field {
   width: 100%;
-  padding: 10px 14px;
-  font-size: 0.875rem;
+  padding: 9px 13px;
+  font-size: var(--font-size-base);
   color: var(--text-main);
   background-color: var(--bg-surface);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  line-height: 1.4;
 }
 
 .input-field:focus {
@@ -47,39 +52,40 @@
   background-color: var(--bg-surface-secondary);
   color: var(--text-muted);
   cursor: not-allowed;
+  border-color: var(--border-color);
 }
 
 .input-field::placeholder {
-  color: var(--text-light);
+  color: var(--text-placeholder);
 }
 
 .input-with-left-icon {
-  padding-left: 40px;
+  padding-left: 38px;
 }
 
 .input-with-right-icon {
-  padding-right: 40px;
+  padding-right: 38px;
 }
 
 .input-icon-left {
   position: absolute;
   left: 12px;
-  color: var(--text-muted);
+  color: var(--text-light);
   pointer-events: none;
 }
 
 .input-password-toggle {
   position: absolute;
-  right: 12px;
+  right: 10px;
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-light);
   cursor: pointer;
   display: flex;
   align-items: center;
   padding: 4px;
   border-radius: var(--radius-sm);
-  transition: color 0.15s ease;
+  transition: color var(--transition-fast);
 }
 
 .input-password-toggle:hover {
@@ -104,11 +110,14 @@
 }
 
 .input-error-text {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--danger);
+  margin-top: var(--space-0-5);
+  font-weight: var(--font-weight-medium);
 }
 
 .input-helper-text {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
+  margin-top: var(--space-0-5);
 }

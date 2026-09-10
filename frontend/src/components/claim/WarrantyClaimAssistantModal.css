@@ -1,13 +1,14 @@
 .claim-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
+  padding: var(--space-4);
+  animation: fadeIn var(--transition-fast) ease-out;
 }
 
 .claim-modal-container {
@@ -21,7 +22,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: modalSlideUp 0.25s ease-out;
+  animation: modalSlideUp var(--transition-fast) ease-out;
 }
 
 @keyframes modalSlideUp {
@@ -30,7 +31,7 @@
 }
 
 .claim-modal-header {
-  padding: 16px 24px;
+  padding: var(--space-4) var(--space-6);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;

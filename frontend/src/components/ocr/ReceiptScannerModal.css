@@ -4,27 +4,28 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(15, 23, 42, 0.7);
+  background-color: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
+  padding: var(--space-4);
+  animation: fadeIn var(--transition-fast) ease-out;
 }
 
 .receipt-modal-container {
-  background: #ffffff;
-  border-radius: 1rem;
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
   width: 100%;
   max-width: 860px;
   max-height: 92vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-color);
   overflow: hidden;
-  animation: modalFadeIn 0.2s ease-out;
+  animation: modalFadeIn var(--transition-fast) ease-out;
 }
 
 @keyframes modalFadeIn {
@@ -42,25 +43,25 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #f1f5f9;
-  background: #ffffff;
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-surface);
 }
 
 .receipt-badge-title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .receipt-badge-title .sparkle-icon {
-  color: #3b82f6;
+  color: var(--primary);
 }
 
 .receipt-badge-title h3 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #0f172a;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-main);
   margin: 0;
 }
 

@@ -204,7 +204,7 @@ export default function DocumentUploadModal({
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-light)' }}>
             <Button variant="secondary" onClick={onClose} disabled={isUploading}>
               Cancel
             </Button>
@@ -212,9 +212,10 @@ export default function DocumentUploadModal({
               type="submit"
               variant="primary"
               icon={UploadCloud}
+              loading={isUploading}
               disabled={isUploading || !selectedFile}
             >
-              {isUploading ? 'Uploading...' : 'Upload & Save'}
+              Upload & Save
             </Button>
           </div>
         </form>

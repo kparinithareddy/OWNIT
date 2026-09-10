@@ -1,80 +1,137 @@
-/* ==========================================
+/* ==========================================================================
    OWNIT - Global Design Tokens & Base Styles
    "Own More. Worry Less."
-   ========================================== */
+   ========================================================================== */
 
 :root {
-  /* Color Palette - Modern & Professional */
+  /* Brand Color Palette */
   --primary: #4f46e5;
   --primary-hover: #4338ca;
+  --primary-active: #3730a3;
   --primary-light: #eef2ff;
   --primary-border: #c7d2fe;
   
   --secondary: #0ea5e9;
+  --secondary-hover: #0284c7;
   --secondary-light: #f0f9ff;
+  --secondary-border: #bae6fd;
   
   --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
   --accent-light: #f5f3ff;
+  --accent-border: #ddd6fe;
 
   /* Surfaces & Backgrounds */
   --bg-app: #f8fafc;
   --bg-surface: #ffffff;
   --bg-surface-secondary: #f1f5f9;
+  --bg-surface-tertiary: #e2e8f0;
   --bg-surface-hover: #f8fafc;
   
-  /* Text Colors */
+  /* Text Colors with WCAG Contrast */
   --text-main: #0f172a;
-  --text-muted: #64748b;
-  --text-light: #94a3b8;
+  --text-muted: #475569;
+  --text-light: #64748b;
+  --text-placeholder: #94a3b8;
   --text-inverse: #ffffff;
 
-  /* Status / Feedback */
+  /* Feedback & Status Colors */
   --success: #10b981;
+  --success-hover: #059669;
   --success-light: #ecfdf5;
   --success-border: #a7f3d0;
   --success-text: #065f46;
 
   --warning: #f59e0b;
+  --warning-hover: #d97706;
   --warning-light: #fffbeb;
   --warning-border: #fde68a;
   --warning-text: #92400e;
 
   --danger: #ef4444;
+  --danger-hover: #dc2626;
   --danger-light: #fef2f2;
   --danger-border: #fecaca;
   --danger-text: #991b1b;
 
   --info: #3b82f6;
+  --info-hover: #2563eb;
   --info-light: #eff6ff;
   --info-border: #bfdbfe;
   --info-text: #1e40af;
 
-  /* Borders & Shadows */
-  --border-light: #e2e8f0;
+  /* Borders & Dividers */
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
   --border-medium: #cbd5e1;
+  --border-dark: #94a3b8;
   
+  /* Radii */
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
   --radius-full: 9999px;
 
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+  /* Shadows (Subtle, Layered Elevation) */
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.07), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
 
-  /* Layout Measurements */
-  --sidebar-width: 250px;
-  --navbar-height: 64px;
+  /* Spacing Scale */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Typography Scale */
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.8125rem;  /* 13px */
+  --font-size-base: 0.875rem; /* 14px */
+  --font-size-md: 1rem;       /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Layout Dimensions */
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 72px;
+  --navbar-height: 64px;
 }
 
-/* Reset & Normalize */
+/* Reset & Box Model */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -85,12 +142,40 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  text-rendering: optimizeLegibility;
 }
 
+/* Accessible Focus Outlines */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Headings Hierarchy */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-main);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+h1 { font-size: var(--font-size-3xl); }
+h2 { font-size: var(--font-size-2xl); }
+h3 { font-size: var(--font-size-xl); }
+h4 { font-size: var(--font-size-lg); }
+h5 { font-size: var(--font-size-md); }
+h6 { font-size: var(--font-size-base); }
+
+p {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Interactive Elements */
 a {
   color: var(--primary);
   text-decoration: none;
-  transition: color 0.15s ease;
+  transition: color var(--transition-fast);
 }
 
 a:hover {
@@ -100,20 +185,42 @@ a:hover {
 button, input, select, textarea {
   font-family: inherit;
   font-size: inherit;
+  color: inherit;
 }
 
-/* Scrollbar Styling */
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Custom Clean Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--border-medium);
   border-radius: var(--radius-full);
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-light);
+}
+
+/* Utility Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
