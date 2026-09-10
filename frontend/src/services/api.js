@@ -175,3 +175,14 @@ export const notificationsApi = {
   delete: (id) => request(`/notifications/${id}`, { method: 'DELETE' })
 };
 
+// Product Maintenance API methods
+export const maintenanceApi = {
+  listByProduct: (productId) => request(`/maintenance/product/${productId}`, { method: 'GET' }),
+  getRecommendations: (productId) => request(`/maintenance/product/${productId}/recommendations`, { method: 'GET' }),
+  get: (id) => request(`/maintenance/${id}`, { method: 'GET' }),
+  create: (payload) => request('/maintenance/', { method: 'POST', body: payload }),
+  update: (id, payload) => request(`/maintenance/${id}`, { method: 'PUT', body: payload }),
+  delete: (id) => request(`/maintenance/${id}`, { method: 'DELETE' })
+};
+
+

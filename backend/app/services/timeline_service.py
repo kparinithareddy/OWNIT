@@ -45,6 +45,11 @@ class TimelineService:
     def notifications_collection(self):
         return db_manager.get_collection("notifications")
 
+    @property
+    def maintenance_collection(self):
+        return db_manager.get_collection("maintenance_records")
+
+
     async def ensure_indexes(self):
         try:
             col = self.events_collection
@@ -230,7 +235,35 @@ class TimelineService:
                 )
             )
 
-        # 7. Include Custom Service / Maintenance / Repair Events
+        # 7. Include Dedicated Product Maintenance Records
+        maint_cursor = self.maintenance_collection.find({"productId": product_id, "userId": user_id})
+        async for m_rec in maint_cursor:
+            m_status = "completed" if m_rec.get("status") == "Completed" else ("critical" if m_rec.get("status") == "Overdue" else "active")
+            events.append(
+                TimelineEvent(
+                    id=f"maint-{m_rec['_id']}",
+                    productId=product.id,
+                    eventType="MAINTENANCE",
+                    title=m_rec.get("title", "Maintenance Action"),
+                    description=m_rec.get("description") or f"{m_rec.get('type', 'Service')} performed on asset.",
+                    date=m_rec.get("date", ""),
+                    category="maintenance",
+                    status=m_status,
+                    icon="wrench",
+                    metadata={
+                        "maintenanceId": str(m_rec["_id"]),
+                        "type": m_rec.get("type"),
+                        "cost": m_rec.get("cost"),
+                        "provider": m_rec.get("serviceProvider"),
+                        "status": m_rec.get("status"),
+                        "documentId": m_rec.get("documentId"),
+                        "nextDueDate": m_rec.get("nextDueDate")
+                    },
+                    createdAt=m_rec.get("createdAt")
+                )
+            )
+
+        # 8. Include Custom Service / Maintenance / Repair Events from lifecycle_events
         custom_cursor = self.events_collection.find({"productId": product_id, "userId": user_id})
         async for c_event in custom_cursor:
             events.append(
@@ -249,8 +282,9 @@ class TimelineService:
                 )
             )
 
-        # 8. Sort chronologically by date ascending, with stable tie-breaking
+        # 9. Sort chronologically by date ascending, with stable tie-breaking
         def sort_key(event: TimelineEvent):
+
             # Parse date safely
             try:
                 d = datetime.strptime(event.date[:10], "%Y-%m-%d").date()

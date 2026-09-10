@@ -33,7 +33,10 @@ import {
   XCircle,
   HelpCircle,
   Info,
-  History
+  History,
+  Wrench,
+  Lightbulb,
+  Building
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -44,9 +47,9 @@ import ErrorState from '../../components/common/ErrorState';
 import ProductFormModal from '../../components/products/ProductFormModal';
 import DocumentUploadModal from '../../components/documents/DocumentUploadModal';
 import WarrantyFormModal from '../../components/warranty/WarrantyFormModal';
+import MaintenanceFormModal from '../../components/maintenance/MaintenanceFormModal';
 import ProductLifecycleTimeline from '../../components/timeline/ProductLifecycleTimeline';
-
-import { productsApi, documentsApi, warrantiesApi } from '../../services/api';
+import { productsApi, documentsApi, warrantiesApi, maintenanceApi } from '../../services/api';
 import './ProductDetail.css';
 
 function getCategoryIcon(cat) {
@@ -80,10 +83,12 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [warranties, setWarranties] = useState([]);
+  const [maintenanceRecords, setMaintenanceRecords] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Active tab: 'overview' | 'warranties' | 'documents'
+  // Active tab: 'overview' | 'warranties' | 'maintenance' | 'timeline' | 'documents'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Modals state
@@ -91,20 +96,26 @@ export default function ProductDetail() {
   const [isUploadDocModalOpen, setIsUploadDocModalOpen] = useState(false);
   const [isWarrantyModalOpen, setIsWarrantyModalOpen] = useState(false);
   const [selectedWarranty, setSelectedWarranty] = useState(null);
+  const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
+  const [selectedMaintenance, setSelectedMaintenance] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchProductData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [prodData, docsData, warrantiesData] = await Promise.all([
+      const [prodData, docsData, warrantiesData, maintData, recsData] = await Promise.all([
         productsApi.get(id),
         documentsApi.list({ productId: id }),
-        warrantiesApi.getByProduct(id)
+        warrantiesApi.getByProduct(id),
+        maintenanceApi.listByProduct(id),
+        maintenanceApi.getRecommendations(id)
       ]);
       setProduct(prodData);
       setDocuments(docsData);
       setWarranties(warrantiesData);
+      setMaintenanceRecords(maintData);
+      setRecommendations(recsData);
     } catch (err) {
       console.error('Error fetching product details:', err);
       setError(err.message || 'Product not found or access denied.');
@@ -119,7 +130,7 @@ export default function ProductDetail() {
 
   const handleDeleteProduct = async () => {
     if (!product) return;
-    if (!window.confirm(`Are you sure you want to permanently delete "${product.name}"? This will also remove associated documents and warranty records.`)) {
+    if (!window.confirm(`Are you sure you want to permanently delete "${product.name}"? This will also remove associated documents, warranties, and maintenance records.`)) {
       return;
     }
 
@@ -176,10 +187,20 @@ export default function ProductDetail() {
     }
   };
 
+  const handleDeleteMaintenance = async (maintId, title) => {
+    if (!window.confirm(`Delete maintenance record "${title}"?`)) return;
+    try {
+      await maintenanceApi.delete(maintId);
+      setMaintenanceRecords((prev) => prev.filter((m) => m.id !== maintId));
+    } catch (err) {
+      alert(`Failed to delete maintenance record: ${err.message}`);
+    }
+  };
+
   if (loading) {
     return (
       <PageContainer>
-        <LoadingState message="Loading product details..." description="Fetching asset, warranty, and document data..." />
+        <LoadingState message="Loading product details..." description="Fetching asset, warranty, and maintenance data..." />
       </PageContainer>
     );
   }
@@ -229,6 +250,16 @@ export default function ProductDetail() {
       subtitle={`${product.brand} • Model: ${product.model}`}
       actions={
         <div className="product-detail-actions">
+          <Button
+            variant="outline"
+            icon={Wrench}
+            onClick={() => {
+              setSelectedMaintenance(null);
+              setIsMaintenanceModalOpen(true);
+            }}
+          >
+            + Log Maintenance
+          </Button>
           <Button
             variant="outline"
             icon={ShieldCheck}
@@ -340,6 +371,12 @@ export default function ProductDetail() {
           <ShieldCheck size={16} /> Warranty Components ({warranties.length})
         </button>
         <button
+          className={`product-tab-btn ${activeTab === 'maintenance' ? 'active' : ''}`}
+          onClick={() => setActiveTab('maintenance')}
+        >
+          <Wrench size={16} /> Maintenance & Care ({maintenanceRecords.length})
+        </button>
+        <button
           className={`product-tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
           onClick={() => setActiveTab('timeline')}
         >
@@ -352,7 +389,6 @@ export default function ProductDetail() {
           <FileText size={16} /> Attached Documents ({documents.length})
         </button>
       </div>
-
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
@@ -637,7 +673,149 @@ export default function ProductDetail() {
         </Card>
       )}
 
-      {/* TAB 3: LIFECYCLE TIMELINE */}
+      {/* TAB 3: MAINTENANCE & CARE */}
+      {activeTab === 'maintenance' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Preventive Recommendations Card */}
+          {recommendations.length > 0 && (
+            <Card
+              title="💡 Preventive Care & Service Recommendations"
+              subtitle="Guidelines and suggested service intervals to maximize appliance lifespan"
+            >
+              <div className="maintenance-recs-grid">
+                {recommendations.map((rec) => (
+                  <div key={rec.id} className="maintenance-rec-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <span className="rec-title">{rec.title}</span>
+                      <span className="rec-interval-pill">Every {rec.suggestedIntervalMonths} mo</span>
+                    </div>
+                    <p className="rec-desc">{rec.description}</p>
+                    <div className="rec-disclaimer-box">
+                      <span className="rec-source"><Info size={12} /> Source: {rec.source}</span>
+                      <span className="rec-disclaimer-text">
+                        {rec.isManufacturerApproved ? '✓ Verified OEM' : '⚠️ ' + rec.disclaimer}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Maintenance History Card */}
+          <Card
+            title={`Maintenance History (${maintenanceRecords.length})`}
+            subtitle="Logged servicing, inspections, repairs, and filter replacements"
+            action={
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Plus}
+                onClick={() => {
+                  setSelectedMaintenance(null);
+                  setIsMaintenanceModalOpen(true);
+                }}
+              >
+                Log Maintenance
+              </Button>
+            }
+          >
+            {maintenanceRecords.length === 0 ? (
+              <div className="tab-empty-state">
+                <Wrench size={36} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                  No maintenance records logged yet
+                </h4>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', maxWidth: '420px', margin: '6px auto 16px' }}>
+                  Keep track of cleaning, filter changes, technician visits, and repair costs to maintain device value.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Plus}
+                  onClick={() => {
+                    setSelectedMaintenance(null);
+                    setIsMaintenanceModalOpen(true);
+                  }}
+                >
+                  Log First Maintenance Record
+                </Button>
+              </div>
+            ) : (
+              <div className="maint-records-list">
+                {maintenanceRecords.map((rec) => {
+                  const isCompleted = rec.status === 'Completed';
+                  const isOverdue = rec.status === 'Overdue';
+                  const statusVariant = isCompleted ? 'active' : isOverdue ? 'danger' : 'warning';
+
+                  return (
+                    <div key={rec.id} className="maint-item-card">
+                      <div className="maint-item-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div className="maint-avatar">
+                            <Wrench size={18} />
+                          </div>
+                          <div>
+                            <h4 className="maint-title">{rec.title}</h4>
+                            <span className="maint-type-pill">{rec.type}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Badge variant={statusVariant} size="sm" dot>
+                            {rec.status}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            icon={Edit2}
+                            onClick={() => {
+                              setSelectedMaintenance(rec);
+                              setIsMaintenanceModalOpen(true);
+                            }}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            icon={Trash2}
+                            style={{ color: 'var(--danger)' }}
+                            onClick={() => handleDeleteMaintenance(rec.id, rec.title)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="maint-item-meta-row">
+                        <span><Calendar size={13} /> Performed: <strong>{rec.date}</strong></span>
+                        {rec.nextDueDate && (
+                          <span><Clock size={13} /> Next Due: <strong>{rec.nextDueDate}</strong></span>
+                        )}
+                        {rec.serviceProvider && (
+                          <span><Building size={13} /> Provider: <strong>{rec.serviceProvider}</strong></span>
+                        )}
+                        {rec.cost !== null && rec.cost !== undefined && (
+                          <span><DollarSign size={13} /> Cost: <strong>₹{rec.cost.toLocaleString('en-IN')}</strong></span>
+                        )}
+                      </div>
+
+                      {rec.description && (
+                        <p className="maint-desc">{rec.description}</p>
+                      )}
+
+                      {rec.notes && (
+                        <p className="maint-notes">
+                          <strong>Technician Remarks:</strong> {rec.notes}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 4: LIFECYCLE TIMELINE */}
       {activeTab === 'timeline' && (
         <Card
           title="Product Lifecycle Timeline"
@@ -647,9 +825,8 @@ export default function ProductDetail() {
         </Card>
       )}
 
-      {/* TAB 4: ATTACHED DOCUMENTS */}
+      {/* TAB 5: ATTACHED DOCUMENTS */}
       {activeTab === 'documents' && (
-
         <Card
           title={`Attached Documents (${documents.length})`}
           subtitle="Purchase invoices, warranty certificates, and manuals linked to this asset"
@@ -760,6 +937,19 @@ export default function ProductDetail() {
         productId={product.id}
         productName={product.name}
         initialWarranty={selectedWarranty}
+        onSuccess={() => {
+          fetchProductData();
+        }}
+      />
+
+      {/* Log / Edit Maintenance Modal */}
+      <MaintenanceFormModal
+        isOpen={isMaintenanceModalOpen}
+        onClose={() => setIsMaintenanceModalOpen(false)}
+        productId={product.id}
+        productName={product.name}
+        initialRecord={selectedMaintenance}
+        availableDocuments={documents}
         onSuccess={() => {
           fetchProductData();
         }}
