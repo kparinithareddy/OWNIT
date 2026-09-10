@@ -23,12 +23,24 @@ from app.services.context_builder import build_product_system_context
 logger = logging.getLogger("ownit.services.chat")
 
 
+from app.schemas.sources import SourceReference
+
+
 def format_chat_message(doc: Dict[str, Any]) -> ChatMessage:
+    raw_refs = doc.get("sourceReferences", [])
+    parsed_refs = []
+    for r in raw_refs:
+        if isinstance(r, dict):
+            parsed_refs.append(SourceReference(**r))
+        elif isinstance(r, SourceReference):
+            parsed_refs.append(r)
+
     return ChatMessage(
         id=str(doc["_id"]),
         role=doc["role"],
         content=doc["content"],
         sources=doc.get("sources", []),
+        sourceReferences=parsed_refs,
         createdAt=doc.get("createdAt", datetime.now(timezone.utc))
     )
 
@@ -180,12 +192,25 @@ class ChatService:
                 f"To enable complete local conversational AI, please ensure Ollama is running (`ollama serve`)."
             )
             cited_sources = ["Database Records (Offline Fallback)"]
-        else:
-            ai_reply_text = ai_res.response
-            # Identify which sources are relevant to the query
-            cited_sources = [s for s in all_sources if any(kw.lower() in ai_reply_text.lower() for kw in s.split())]
-            if not cited_sources:
-                cited_sources = [f"{product.brand} {product.name} Dossier"]
+        # Identify which sources are relevant to the query based on hierarchy
+        cited_sources_str = []
+        cited_source_refs = []
+
+        for s in all_sources:
+            # Match keywords from title, domain, or details in reply or query
+            if (
+                any(kw.lower() in ai_reply_text.lower() for kw in s.title.split() if len(kw) > 3)
+                or (s.domain and s.domain.lower() in ai_reply_text.lower())
+                or (s.sourceType in ["user_document", "official_manufacturer"] and len(cited_source_refs) < 2)
+            ):
+                cited_sources_str.append(s.title)
+                cited_source_refs.append(s.model_dump())
+
+        if not cited_source_refs and all_sources:
+            # Fallback to top priority source
+            top_s = all_sources[0]
+            cited_sources_str = [top_s.title]
+            cited_source_refs = [top_s.model_dump()]
 
         # Persist assistant reply
         assistant_now = datetime.now(timezone.utc)
@@ -194,7 +219,8 @@ class ChatService:
             "userId": user_id,
             "role": "assistant",
             "content": ai_reply_text,
-            "sources": cited_sources[:4],
+            "sources": cited_sources_str[:4],
+            "sourceReferences": cited_source_refs[:4],
             "createdAt": assistant_now
         }
         a_res = await self.collection.insert_one(assistant_doc)

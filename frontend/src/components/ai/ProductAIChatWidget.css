@@ -168,10 +168,14 @@
 .sources-label {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.shield-icon {
+  color: var(--primary);
 }
 
 .source-pill {
@@ -182,6 +186,57 @@
   border: 1px solid var(--border-color);
   color: var(--primary);
   font-weight: 500;
+}
+
+.source-ref-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6875rem;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.source-ref-badge:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.96);
+}
+
+.source-ref-user-doc {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
+}
+
+.source-ref-oem {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.source-ref-ext {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+}
+
+.source-ref-general {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+}
+
+.source-ref-domain {
+  font-size: 0.625rem;
+  opacity: 0.75;
+}
+
+.external-link-icon {
+  opacity: 0.7;
 }
 
 /* Typing Indicator */

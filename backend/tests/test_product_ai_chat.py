@@ -118,12 +118,15 @@ def test_context_builder_rich_synthesis_and_anti_hallucination_rules():
     assert "reliance_tv_bill.pdf" in system_prompt
     assert "Wall Mount Installation & Demo" in system_prompt
 
-    # 2. Verify strict anti-hallucination instruction
-    assert "NO HALLUCINATED WARRANTIES" in system_prompt
-    assert "cannot verify warranty coverage" in system_prompt.lower()
-    assert "SOURCING TRANSPARENCY" in system_prompt
+    # 2. Verify strict anti-hallucination instruction & source hierarchy
+    assert "SOURCE PRIORITY HIERARCHY" in system_prompt
+    assert "DO NOT FABRICATE SOURCES OR URLS" in system_prompt
+    assert "cannot verify" in system_prompt.lower()
+    assert "UNVERIFIED INFORMATION" in system_prompt
 
-    # 3. Verify sources list
-    assert any("Comprehensive Warranty" in s for s in sources)
-    assert any("Purchase Bill" in s for s in sources)
-    assert any("Product Record" in s for s in sources)
+    # 3. Verify sources list (SourceReference objects)
+    source_titles = [s.title for s in sources]
+    assert any("Comprehensive Warranty" in t for t in source_titles)
+    assert any("Purchase Bill" in t for t in source_titles)
+    assert any("Samsung Official Support" in t for t in source_titles)
+    assert any("General Consumer Electronics" in t for t in source_titles)

@@ -12,13 +12,26 @@ import {
   FileText,
   Wrench,
   Layers,
-  AlertCircle
+  AlertCircle,
+  ExternalLink,
+  Building,
+  Globe
 } from 'lucide-react';
 import Card from '../common/Card';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import { aiApi } from '../../services/api';
 import './ProductAIChatWidget.css';
+
+function renderSourceIcon(sourceType) {
+  switch (sourceType) {
+    case 'user_document': return FileText;
+    case 'official_manufacturer': return Building;
+    case 'reliable_external': return Globe;
+    default: return Info;
+  }
+}
+
 
 const DEFAULT_SUGGESTED_PROMPTS = [
   "What is covered under my warranty?",
@@ -218,15 +231,63 @@ export default function ProductAIChatWidget({ product, warranties = [], document
                     {msg.content}
                   </div>
 
-                  {/* Sourced References Pills */}
-                  {msg.sources && msg.sources.length > 0 && !isUser && (
+                  {/* Sourced References Pills / Structured Badges */}
+                  {!isUser && ((msg.sourceReferences && msg.sourceReferences.length > 0) || (msg.sources && msg.sources.length > 0)) && (
                     <div className="chat-sources-row">
-                      <span className="sources-label"><Info size={11} /> Verified Sources:</span>
-                      {msg.sources.map((src, sIdx) => (
-                        <span key={sIdx} className="source-pill">
-                          {src}
-                        </span>
-                      ))}
+                      <span className="sources-label">
+                        <ShieldCheck size={12} className="shield-icon" /> Sourced via:
+                      </span>
+                      {msg.sourceReferences && msg.sourceReferences.length > 0 ? (
+                        msg.sourceReferences.map((refItem, rIdx) => {
+                          const IconComp = renderSourceIcon(refItem.sourceType);
+                          const isOem = refItem.sourceType === 'official_manufacturer';
+                          const isDoc = refItem.sourceType === 'user_document';
+                          const isExt = refItem.sourceType === 'reliable_external';
+                          const tierClass = isDoc
+                            ? 'source-ref-user-doc'
+                            : isOem
+                            ? 'source-ref-oem'
+                            : isExt
+                            ? 'source-ref-ext'
+                            : 'source-ref-general';
+
+                          return refItem.url ? (
+                            <a
+                              key={rIdx}
+                              href={refItem.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`source-ref-badge ${tierClass}`}
+                              title={refItem.details || refItem.title}
+                            >
+                              <IconComp size={11} className="source-type-icon" />
+                              <span className="source-ref-title">{refItem.title}</span>
+                              {refItem.domain && (
+                                <span className="source-ref-domain">({refItem.domain})</span>
+                              )}
+                              <ExternalLink size={10} className="external-link-icon" />
+                            </a>
+                          ) : (
+                            <span
+                              key={rIdx}
+                              className={`source-ref-badge ${tierClass}`}
+                              title={refItem.details || refItem.title}
+                            >
+                              <IconComp size={11} className="source-type-icon" />
+                              <span className="source-ref-title">{refItem.title}</span>
+                              {refItem.domain && (
+                                <span className="source-ref-domain">({refItem.domain})</span>
+                              )}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        msg.sources.map((src, sIdx) => (
+                          <span key={sIdx} className="source-pill">
+                            {src}
+                          </span>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>

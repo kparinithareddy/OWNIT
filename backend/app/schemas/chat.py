@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 from datetime import datetime
+from app.schemas.sources import SourceReference
 
 
 ChatMessageRole = Literal["user", "assistant", "system"]
@@ -10,8 +11,10 @@ class ChatMessage(BaseModel):
     id: str = Field(..., description="Unique message ID")
     role: ChatMessageRole = Field(..., description="Message author role: user or assistant")
     content: str = Field(..., description="Message text content")
-    sources: List[str] = Field(default_factory=list, description="Source references cited (e.g. Comprehensive Warranty, Purchase Bill, General Care Guide)")
+    sources: List[str] = Field(default_factory=list, description="Legacy string source names")
+    sourceReferences: List[SourceReference] = Field(default_factory=list, description="Structured 4-tier verified source references")
     createdAt: datetime = Field(default_factory=datetime.utcnow, description="Message timestamp")
+
 
 
 class ChatSendRequest(BaseModel):

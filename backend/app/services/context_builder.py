@@ -2,6 +2,8 @@ import logging
 from typing import List, Dict, Any, Tuple
 from app.schemas.product import ProductResponse
 from app.schemas.warranty import WarrantyResponse
+from app.schemas.sources import SourceReference
+from app.services.retrieval_service import retrieval_service
 
 logger = logging.getLogger("ownit.services.context_builder")
 
@@ -11,16 +13,27 @@ def build_product_system_context(
     warranties: List[WarrantyResponse],
     documents: List[Dict[str, Any]],
     maintenance_records: List[Dict[str, Any]],
-    recommendations: List[Dict[str, Any]]
-) -> Tuple[str, List[str]]:
+    recommendations: List[Dict[str, Any]],
+    query: str = ""
+) -> Tuple[str, List[SourceReference]]:
     """
-    Constructs an extensive, fact-anchored system prompt containing all known product information.
-    Enforces strict anti-hallucination rules and builds the list of verified sources.
+    Constructs an extensive, fact-anchored system prompt containing all known product information
+    structured by the 4-tier source hierarchy:
+    Tier 1: Uploaded User Documents
+    Tier 2: Official Manufacturer Sources
+    Tier 3: Reliable External Sources (Seller policy)
+    Tier 4: General Knowledge
     """
-    sources: List[str] = []
+    # Retrieve ranked source references
+    structured_sources = retrieval_service.retrieve_hierarchical_sources(
+        product=product,
+        warranties=warranties,
+        documents=documents,
+        maintenance_records=maintenance_records,
+        query=query
+    )
 
     # 1. Product Core Information
-    sources.append("Product Record")
     product_lines = [
         f"Product Name: {product.name}",
         f"Brand / Manufacturer: {product.brand}",
@@ -35,20 +48,18 @@ def build_product_system_context(
         f"Notes: {product.notes or 'None'}"
     ]
 
-    # 2. Return & Replacement Policy
+    # 2. Return & Replacement Policy (Tier 3)
     if product.returnDuration and product.returnDuration != "None":
-        sources.append("Return & Replacement Policy")
         product_lines.extend([
             f"Return Duration: {product.returnDuration}",
             f"Return Deadline: {product.returnDeadline or 'N/A'} (Status: {product.returnStatus})",
             f"Return Policy Source: {product.returnPolicySource or 'Seller policy'}"
         ])
 
-    # 3. Warranty Components
+    # 3. Warranty Components (Tier 1 & Tier 2)
     warranty_sections = []
     if warranties:
         for w in warranties:
-            sources.append(f"{w.type} ({w.provider})")
             w_block = [
                 f"• Type: {w.type}",
                 f"  Provider: {w.provider}",
@@ -63,13 +74,12 @@ def build_product_system_context(
     else:
         warranty_sections.append("No active warranty components registered in database.")
 
-    # 4. Uploaded Documents
+    # 4. Uploaded Documents (Tier 1)
     doc_sections = []
     if documents:
         for d in documents:
             doc_type = d.get("documentType", "Document")
-            sources.append(f"{doc_type}: {d.get('originalFilename', 'file')}")
-            doc_sections.append(f"• {doc_type}: {d.get('originalFilename')} (Uploaded: {d.get('uploadedAt', '')})")
+            doc_sections.append(f"• [Tier 1 User Document] {doc_type}: {d.get('originalFilename')} (Uploaded: {d.get('uploadedAt', '')})")
     else:
         doc_sections.append("No paperwork or invoices attached yet.")
 
@@ -77,7 +87,6 @@ def build_product_system_context(
     maint_sections = []
     if maintenance_records:
         for m in maintenance_records:
-            sources.append(f"Maintenance Log: {m.get('title', 'Service')}")
             m_lines = [
                 f"• [{m.get('status', 'Completed').upper()}] {m.get('title')} ({m.get('type')}) - Date: {m.get('date')}",
                 f"  Description: {m.get('description', 'N/A')}",
@@ -89,21 +98,32 @@ def build_product_system_context(
     else:
         maint_sections.append("No past maintenance or service logs recorded.")
 
-    # 6. General Preventive Guidelines (Clearly marked as non-OEM unless verified)
-    rec_sections = []
-    if recommendations:
-        for r in recommendations:
-            rec_sections.append(
-                f"• {r.get('title')}: {r.get('description')} (Interval: every {r.get('suggestedIntervalMonths')} months) "
-                f"[Source: {r.get('source')} - Note: {r.get('disclaimer')}]"
-            )
-    else:
-        rec_sections.append("Standard preventive care guidelines apply.")
+    # 6. Verified Manufacturer & External Sources Block
+    source_hierarchy_lines = []
+    for s in structured_sources:
+        tier_label = {
+            "user_document": "Priority 1: User Document",
+            "official_manufacturer": "Priority 2: Official Manufacturer Source",
+            "reliable_external": "Priority 3: Reliable External / Seller Source",
+            "general_knowledge": "Priority 4: General Knowledge / Preventive Care"
+        }.get(s.sourceType, "Source")
+        url_part = f" ({s.url})" if s.url else (f" [Domain: {s.domain}]" if s.domain else "")
+        source_hierarchy_lines.append(f"• [{tier_label}] {s.title}{url_part}: {s.details or ''}")
 
     # Assemble System Prompt
     system_prompt = f"""You are OWNIT Assistant, an intelligent, objective, and privacy-first product management assistant for physical consumer assets.
 
 You are assisting the verified owner of this specific asset.
+
+=== SOURCE PRIORITY HIERARCHY ===
+When answering questions or checking policies, strictly prioritize information in this order:
+1. Uploaded user documents & invoices (Highest priority)
+2. Official manufacturer sources & verified OEM warranty portals
+3. Reliable external sources & verified seller return terms
+4. General AI knowledge & preventive guidelines (Lowest priority)
+
+=== KNOWN SOURCES & POLICIES ===
+{chr(10).join(source_hierarchy_lines)}
 
 === TARGET PRODUCT DOSSIER ===
 {chr(10).join(product_lines)}
@@ -117,14 +137,13 @@ You are assisting the verified owner of this specific asset.
 === SERVICE & MAINTENANCE HISTORY ===
 {chr(10).join(maint_sections)}
 
-=== GENERAL CARE GUIDELINES ===
-{chr(10).join(rec_sections)}
-
 === STRICT INSTRUCTIONS & ETHICAL BOUNDS ===
 1. CONVERSATIONAL CONTEXT: The user may ask multi-turn questions like "How do I clean it?" followed by "Is that covered by warranty?". Understand pronouns and references in context of this specific product ({product.brand} {product.name}).
-2. NO HALLUCINATED WARRANTIES: You must NOT invent warranty coverage. If the user asks whether a specific issue, cleaning, or accidental damage is covered and it is NOT explicitly listed in the inclusions above, state clearly: "I cannot verify warranty coverage for this from your recorded documents. Please check with the manufacturer or authorized service center."
-3. SOURCING TRANSPARENCY: Never claim an instruction is manufacturer-approved unless it comes directly from verified documentation. State general care tips as general industry preventive practices.
-4. TONE: Helpful, concise, professional, and practical. Format responses cleanly with markdown bullet points where appropriate.
+2. SOURCE IDENTIFICATION: Clearly identify the source used for key claims (e.g. "Source: Uploaded Warranty Card" or "Source: Samsung India Official Warranty Policy").
+3. DO NOT FABRICATE SOURCES OR URLS: Never invent warranty coverage, URLs, or policy clauses.
+4. UNVERIFIED INFORMATION: If information cannot be verified from the uploaded documents or official manufacturer records, clearly tell the user: "I cannot verify this from your uploaded documents or official manufacturer policies. Please consult authorized service representatives."
+5. TONE: Helpful, concise, professional, and practical. Format responses cleanly with markdown bullet points where appropriate.
 """
 
-    return system_prompt, list(set(sources))
+    return system_prompt, structured_sources
+
