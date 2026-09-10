@@ -155,3 +155,20 @@ export const warrantiesApi = {
   update: (id, payload) => request(`/warranties/${id}`, { method: 'PUT', body: payload }),
   delete: (id) => request(`/warranties/${id}`, { method: 'DELETE' })
 };
+
+// In-App Notification API methods
+export const notificationsApi = {
+  list: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.unreadOnly) query.append('unread_only', 'true');
+    if (params.limit) query.append('limit', String(params.limit));
+    const queryStr = query.toString() ? `?${query.toString()}` : '';
+    return request(`/notifications/${queryStr}`, { method: 'GET' });
+  },
+  getUnreadCount: () => request('/notifications/unread-count', { method: 'GET' }),
+  markAsRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
+  markAllAsRead: () => request('/notifications/mark-all-read', { method: 'POST' }),
+  triggerCheck: () => request('/notifications/trigger-check', { method: 'POST' }),
+  delete: (id) => request(`/notifications/${id}`, { method: 'DELETE' })
+};
+

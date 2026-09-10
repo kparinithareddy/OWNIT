@@ -6,10 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import db_manager
 from app.core.handlers import register_exception_handlers
+from app.core.scheduler import notification_scheduler
 from app.api.v1.router import api_v1_router
 from app.services.user_service import user_service
 from app.services.product_service import product_service
 from app.services.document_service import document_service
+from app.services.warranty_service import warranty_service
+from app.services.notification_service import notification_service
 
 # Configure basic logging
 logging.basicConfig(
@@ -24,23 +27,29 @@ async def lifespan(app: FastAPI):
     """
     Manages the application lifecycle:
     - Connects to MongoDB on startup
-    - Ensures database indexes (users, products, documents)
-    - Gracefully disconnects MongoDB on shutdown
+    - Ensures database indexes (users, products, documents, warranties, notifications)
+    - Starts the local development background notification scheduler
+    - Gracefully stops scheduler and disconnects MongoDB on shutdown
     """
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}...")
     # 1. Initialize MongoDB connection
     is_connected = await db_manager.connect()
 
-    # 2. Ensure indexes if database is reachable
+    # 2. Ensure indexes and start scheduler if database is reachable
     if is_connected:
         await user_service.ensure_indexes()
         await product_service.ensure_indexes()
         await document_service.ensure_indexes()
+        await warranty_service.ensure_indexes()
+        await notification_service.ensure_indexes()
+        # Start notification scheduler
+        notification_scheduler.start()
 
     yield
 
     # 3. Shutdown logic
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
+    notification_scheduler.stop()
     await db_manager.disconnect()
 
 
@@ -84,7 +93,9 @@ def create_app() -> FastAPI:
             "health_v1": f"{settings.API_V1_PREFIX}/health",
             "auth_v1": f"{settings.API_V1_PREFIX}/auth",
             "products_v1": f"{settings.API_V1_PREFIX}/products",
-            "documents_v1": f"{settings.API_V1_PREFIX}/documents"
+            "documents_v1": f"{settings.API_V1_PREFIX}/documents",
+            "warranties_v1": f"{settings.API_V1_PREFIX}/warranties",
+            "notifications_v1": f"{settings.API_V1_PREFIX}/notifications"
         }
 
     return app

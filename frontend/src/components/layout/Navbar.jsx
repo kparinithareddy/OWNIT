@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Menu,
@@ -11,11 +11,31 @@ import {
   Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { notificationsApi } from '../../services/api';
 import './Navbar.css';
 
 export default function Navbar({ onToggleSidebar }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnread = async () => {
+    try {
+      if (user) {
+        const data = await notificationsApi.getUnreadCount();
+        setUnreadCount(data.unreadCount || 0);
+      }
+    } catch (err) {
+      console.debug('Failed to fetch unread notification count:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnread();
+    // Poll unread count periodically every 60 seconds
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -65,10 +85,14 @@ export default function Navbar({ onToggleSidebar }) {
           <span>Ask AI</span>
         </Link>
 
-        {/* Notifications Icon with Badge */}
+        {/* Notifications Icon with Dynamic Badge */}
         <Link to="/notifications" className="navbar-icon-btn" title="Notifications & Expiration Alerts">
           <Bell size={18} />
-          <span className="navbar-notification-dot" />
+          {unreadCount > 0 && (
+            <span className="navbar-notification-badge" title={`${unreadCount} unread notification(s)`}>
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </Link>
 
         {/* Language Indicator */}

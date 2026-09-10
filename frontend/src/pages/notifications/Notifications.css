@@ -4,13 +4,48 @@
   gap: 12px;
 }
 
+.notif-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 4px;
+}
+
+.notif-tab-btn {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notif-tab-btn:hover {
+  color: var(--text-main);
+}
+
+.notif-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
 .notif-card {
   transition: all 0.15s ease;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+}
+
+.notif-card:hover {
+  box-shadow: var(--shadow-sm);
 }
 
 .notif-unread {
   border-left: 4px solid var(--primary);
-  background-color: #faf5ff;
+  background-color: rgba(37, 99, 235, 0.03);
 }
 
 .notif-row {
@@ -28,6 +63,11 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.notif-icon-danger {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
 }
 
 .notif-icon-warning {
@@ -49,13 +89,15 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .notif-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .notif-title {
@@ -66,20 +108,33 @@
 
 .notif-time {
   font-size: 0.75rem;
-  color: var(--text-light);
+  color: var(--text-muted);
 }
 
 .notif-message {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  line-height: 1.4;
+  font-size: 0.875rem;
+  color: var(--text-main);
+  line-height: 1.45;
+  margin: 0;
 }
 
-.notif-unread-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--primary);
-  flex-shrink: 0;
+.notif-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 6px;
+}
+
+.unread-pill {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: var(--primary);
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.notif-empty-box {
+  text-align: center;
+  padding: 40px 16px;
 }
