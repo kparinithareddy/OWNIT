@@ -1,46 +1,82 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Package,
   ShieldCheck,
+  ShieldAlert,
   Clock,
   Sparkles,
   Camera,
   Plus,
   ArrowRight,
-  CheckCircle,
-  AlertTriangle,
+  Search,
+  Filter,
+  Layers,
+  Store,
+  Calendar,
+  AlertCircle,
   FileText,
   Smartphone,
   Laptop,
   Tv,
-  Volume2
+  Refrigerator,
+  Volume2,
+  Camera as CameraIcon,
+  Gamepad2,
+  Tag
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card, { StatCard } from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import Modal from '../../components/common/Modal';
 import LoadingState from '../../components/common/LoadingState';
 import ProductFormModal from '../../components/products/ProductFormModal';
+import Modal from '../../components/common/Modal';
+import { PRODUCT_CATEGORIES } from '../../data/categories';
 import { productsApi } from '../../services/api';
-import { mockNotifications } from '../../data/mockData';
 import './Dashboard.css';
+
+// Helper to pick category icon
+function getCategoryIcon(cat) {
+  switch (cat) {
+    case 'Mobile': return Smartphone;
+    case 'Laptop': return Laptop;
+    case 'TV': return Tv;
+    case 'Refrigerator': return Refrigerator;
+    case 'Audio': return Volume2;
+    case 'Camera': return CameraIcon;
+    case 'Gaming': return Gamepad2;
+    case 'Home Appliance':
+    case 'Air Conditioner':
+    case 'Washing Machine': return Sparkles;
+    default: return Package;
+  }
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedBrand, setSelectedBrand] = useState('All');
+
+  // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await productsApi.list();
       setProducts(data);
     } catch (err) {
-      console.warn('Could not load products on dashboard:', err);
+      console.error('Error fetching dashboard products:', err);
+      setError(err.message || 'Failed to connect to backend.');
     } finally {
       setLoading(false);
     }
@@ -50,12 +86,47 @@ export default function Dashboard() {
     fetchProducts();
   }, []);
 
-  const totalValue = products.reduce((acc, p) => acc + (p.price * (p.quantity || 1)), 0);
+  // Compute unique brands from current user's products
+  const availableBrands = useMemo(() => {
+    const brands = new Set();
+    products.forEach((p) => {
+      if (p.brand && p.brand.trim()) {
+        brands.add(p.brand.trim());
+      }
+    });
+    return ['All', ...Array.from(brands).sort()];
+  }, [products]);
+
+  // Filter products client-side for immediate responsive search/brand/category filtering
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchesSearch =
+        !searchTerm.trim() ||
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.serialNumber && p.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.seller && p.seller.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const matchesCategory =
+        selectedCategory === 'All' || p.category === selectedCategory;
+
+      const matchesBrand =
+        selectedBrand === 'All' || p.brand.toLowerCase() === selectedBrand.toLowerCase();
+
+      return matchesSearch && matchesCategory && matchesBrand;
+    });
+  }, [products, searchTerm, selectedCategory, selectedBrand]);
+
+  const totalValue = products.reduce(
+    (acc, p) => acc + (p.price * (p.quantity || 1)),
+    0
+  );
 
   return (
     <PageContainer
       title="Dashboard Overview"
-      subtitle="Track your products, active warranties, and upcoming expiration deadlines."
+      subtitle="Track your physical assets, active warranties, and upcoming expiration deadlines."
       actions={
         <div className="dashboard-top-actions">
           <Button
@@ -75,7 +146,7 @@ export default function Dashboard() {
         </div>
       }
     >
-      {/* Stat Cards Grid */}
+      {/* 1. Summary Cards (4 Cards) */}
       <div className="dashboard-stats-grid">
         <StatCard
           title="Total Products"
@@ -86,145 +157,246 @@ export default function Dashboard() {
         />
         <StatCard
           title="Active Warranties"
-          value={loading ? '...' : String(products.length > 0 ? products.length : 0)}
-          subtitle="Protected devices"
+          value={loading ? '...' : '0'}
+          subtitle="🟢 Active (Pending Warranty Sync)"
           icon={ShieldCheck}
           variant="success"
         />
         <StatCard
           title="Expiring Soon"
           value="0"
-          subtitle="Within next 30 days"
+          subtitle="🟠 Expiring within 30 days"
           icon={Clock}
           variant="warning"
         />
         <StatCard
-          title="AI Assistant"
-          value="Ready"
-          subtitle="Local Ollama Engine"
-          icon={Sparkles}
-          variant="info"
+          title="Expired"
+          value="0"
+          subtitle="🔴 Out of coverage"
+          icon={ShieldAlert}
+          variant="danger"
         />
       </div>
 
-      {/* Main 2-Column Section */}
-      <div className="dashboard-main-grid">
-        {/* Left Column: Recent Products */}
-        <div className="dashboard-col-left">
-          <Card
-            title="My Registered Products"
-            subtitle="Your cataloged physical items and electronics"
-            action={
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={ArrowRight}
-                iconPosition="right"
-                onClick={() => navigate('/products')}
-              >
-                View All ({products.length})
-              </Button>
-            }
-          >
-            {loading ? (
-              <LoadingState message="Loading products..." description="" />
-            ) : products.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-                <Package size={36} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
-                <h4 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                  No products added yet
-                </h4>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
-                  Click below to add your first physical product!
-                </p>
-                <Button variant="primary" size="sm" icon={Plus} onClick={() => setIsAddModalOpen(true)}>
-                  Add Product Now
-                </Button>
-              </div>
-            ) : (
-              <div className="dashboard-product-list">
-                {products.slice(0, 5).map((product) => (
-                  <div
-                    key={product.id}
-                    className="dashboard-product-row"
-                    onClick={() => navigate(`/products/${product.id}`)}
-                  >
-                    <div className="product-row-icon">
-                      <Package size={20} />
-                    </div>
-                    <div className="product-row-info">
-                      <h4 className="product-row-name">{product.name}</h4>
-                      <p className="product-row-details">
-                        {product.brand} &bull; {product.category} &bull; ₹{product.price.toLocaleString('en-IN')}
-                      </p>
-                    </div>
-                    <div className="product-row-status">
-                      <Badge variant="info" size="sm">
-                        {product.category}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+      {/* 2. Expiring Soon Section */}
+      <Card
+        title="⏳ Expiring Soon (Warranties & Returns)"
+        subtitle="Monitors deadlines requiring attention in the next 30 days"
+        className="expiring-section-card"
+      >
+        <div className="expiring-placeholder-box">
+          <div className="expiring-placeholder-icon">
+            <Clock size={28} />
+          </div>
+          <div className="expiring-placeholder-text">
+            <h4 className="expiring-placeholder-title">No Warranties Expiring Soon</h4>
+            <p className="expiring-placeholder-desc">
+              All your products are currently in good standing. When receipts and warranty durations are linked, automated countdown alerts will appear here.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* 3. Search & Filter Bar */}
+      <div className="dashboard-filter-toolbar">
+        <div className="dashboard-search-wrap">
+          <Search size={16} className="dashboard-search-icon" />
+          <input
+            type="text"
+            placeholder="Search by product name, brand, model, serial #..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="dashboard-search-input"
+          />
         </div>
 
-        {/* Right Column: Alerts & AI Recommendations */}
-        <div className="dashboard-col-right">
-          <Card
-            title="Priority Alerts & Reminders"
-            subtitle="Upcoming warranty deadlines & maintenance tasks"
-            action={
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/notifications')}
-              >
-                All Alerts
-              </Button>
-            }
-          >
-            <div className="dashboard-alerts-list">
-              {mockNotifications.map((notif) => (
-                <div key={notif.id} className={`dashboard-alert-item alert-type-${notif.type}`}>
-                  <div className="alert-item-icon">
-                    {notif.type === 'warning' && <AlertTriangle size={18} />}
-                    {notif.type === 'info' && <Clock size={18} />}
-                    {notif.type === 'success' && <CheckCircle size={18} />}
-                  </div>
-                  <div className="alert-item-content">
-                    <h5 className="alert-item-title">{notif.title}</h5>
-                    <p className="alert-item-message">{notif.message}</p>
-                    <span className="alert-item-time">{notif.date}</span>
-                  </div>
-                </div>
+        <div className="dashboard-dropdown-filters">
+          {/* Category Filter Dropdown */}
+          <div className="filter-dropdown-item">
+            <label className="dropdown-label"><Layers size={13} /> Category:</label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="dashboard-select"
+            >
+              <option value="All">All Categories</option>
+              {PRODUCT_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
               ))}
-            </div>
-          </Card>
+            </select>
+          </div>
 
-          {/* Quick AI Prompt Card */}
-          <Card className="dashboard-ai-card" padding="md">
-            <div className="ai-banner-content">
-              <div className="ai-banner-badge">
-                <Sparkles size={14} />
-                <span>Local AI Ready</span>
+          {/* Brand Filter Dropdown */}
+          <div className="filter-dropdown-item">
+            <label className="dropdown-label"><Tag size={13} /> Brand:</label>
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="dashboard-select"
+            >
+              {availableBrands.map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand === 'All' ? 'All Brands' : brand}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Products Section */}
+      <div className="dashboard-products-section">
+        <div className="section-header-row">
+          <div>
+            <h3 className="section-title">My Registered Assets</h3>
+            <p className="section-subtitle">
+              Showing {filteredProducts.length} of {products.length} registered item(s)
+            </p>
+          </div>
+          {products.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={ArrowRight}
+              iconPosition="right"
+              onClick={() => navigate('/products')}
+            >
+              Manage Catalog
+            </Button>
+          )}
+        </div>
+
+        {loading ? (
+          <LoadingState message="Loading your dashboard..." description="Fetching assets from database..." />
+        ) : error ? (
+          <div className="dashboard-error-box">
+            <AlertCircle size={24} color="var(--danger)" />
+            <p>{error}</p>
+            <Button variant="outline" size="sm" onClick={fetchProducts}>
+              Retry
+            </Button>
+          </div>
+        ) : products.length === 0 ? (
+          /* Zero Products State */
+          <Card className="dashboard-empty-card">
+            <div className="empty-onboarding-box">
+              <div className="empty-icon-circle">
+                <Package size={36} />
               </div>
-              <h4 className="ai-banner-title">Ask OWNIT Assistant</h4>
-              <p className="ai-banner-desc">
-                Have questions about warranty coverage, claim letters, or manuals?
+              <h4 className="empty-title">Welcome to OWNIT!</h4>
+              <p className="empty-desc">
+                You haven't registered any physical products yet. Start by adding your electronics, home appliances, or mobile devices to track their full lifecycle.
               </p>
               <Button
                 variant="primary"
-                size="sm"
-                icon={Sparkles}
-                onClick={() => navigate('/ai-assistant')}
+                icon={Plus}
+                size="md"
+                onClick={() => setIsAddModalOpen(true)}
               >
-                Open AI Assistant
+                Add Your First Product
               </Button>
             </div>
           </Card>
-        </div>
+        ) : filteredProducts.length === 0 ? (
+          /* Filter No-Match State */
+          <Card className="dashboard-empty-card">
+            <div className="empty-onboarding-box">
+              <Package size={32} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
+              <h4 className="empty-title">No products match your filters</h4>
+              <p className="empty-desc">
+                Try clearing your search query, category, or brand filter.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedCategory('All');
+                  setSelectedBrand('All');
+                }}
+              >
+                Reset All Filters
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          /* Product Cards Grid */
+          <div className="dashboard-product-grid">
+            {filteredProducts.map((product) => {
+              const IconComponent = getCategoryIcon(product.category);
+              return (
+                <Card
+                  key={product.id}
+                  hoverable
+                  className="dashboard-item-card"
+                  onClick={() => navigate(`/products/${product.id}`)}
+                >
+                  <div className="item-card-header">
+                    <div className="item-thumbnail">
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className="item-img"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="item-fallback-icon"
+                        style={{ display: product.image ? 'none' : 'flex' }}
+                      >
+                        <IconComponent size={24} />
+                      </div>
+                    </div>
+
+                    <div className="item-badges-column">
+                      <span className="category-pill">{product.category}</span>
+                      {/* Warranty Status Placeholder */}
+                      <span className="warranty-status-pill" title="Warranty Status">
+                        🟢 Active (Pending Doc)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="item-card-body">
+                    <span className="item-brand-tag">{product.brand}</span>
+                    <h4 className="item-name">{product.name}</h4>
+                    <p className="item-model">{product.model}</p>
+                  </div>
+
+                  <div className="item-card-details">
+                    <div className="item-meta-row">
+                      <Calendar size={13} />
+                      <span>Purchased: {product.purchaseDate}</span>
+                    </div>
+                    {product.seller && (
+                      <div className="item-meta-row">
+                        <Store size={13} />
+                        <span>Seller: {product.seller}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="item-card-footer">
+                    <div className="item-price">
+                      ₹{product.price.toLocaleString('en-IN')}
+                      {product.quantity > 1 && (
+                        <span className="item-qty-tag">x{product.quantity}</span>
+                      )}
+                    </div>
+                    <div className="life-score-placeholder" title="Product Life Score">
+                      <span className="score-label">Life Score:</span>
+                      <span className="score-badge">Pending</span>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Add Product Modal */}
@@ -249,7 +421,7 @@ export default function Dashboard() {
           </div>
           <h4 style={{ fontSize: '1rem', fontWeight: 600 }}>Drag & Drop Receipt / Invoice</h4>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Supports PDF, PNG, JPG (Processed completely locally with Tesseract)
+            Supports PDF, PNG, JPG (Processed completely locally with Tesseract OCR)
           </p>
           <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
             <Button variant="outline" onClick={() => setIsScanModalOpen(false)}>Browse Files</Button>
