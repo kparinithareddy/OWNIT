@@ -279,7 +279,7 @@ class RecallService:
         """
         Scans all registered products in the user's vault and compiles active recall alerts.
         """
-        all_products = await product_service.list_products_by_user(user_id)
+        all_products = await product_service.get_user_products(user_id)
         alerts: List[ProductRecallCheckResponse] = []
 
         for p in all_products:

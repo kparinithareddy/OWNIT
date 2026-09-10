@@ -275,6 +275,16 @@ class DocumentService:
 
         return documents
 
+    async def get_documents(
+        self,
+        user_id: str,
+        product_id: Optional[str] = None
+    ) -> List[DocumentResponse]:
+        """
+        Convenience alias to retrieve user documents scoped to product.
+        """
+        return await self.list_user_documents(user_id=user_id, product_id=product_id)
+
     async def get_document_by_id(self, document_id: str, user_id: str) -> Dict[str, Any]:
         """
         Retrieves document record, verifying ownership.
