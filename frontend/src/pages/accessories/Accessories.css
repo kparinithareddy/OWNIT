@@ -1,0 +1,87 @@
+.accessories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.accessory-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.accessory-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.accessory-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background-color: var(--secondary-light);
+  color: var(--secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.accessory-category {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.accessory-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 2px;
+}
+
+.accessory-target {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.accessory-compat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--success-text);
+  background-color: var(--success-light);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-top: 12px;
+}
+
+.compat-check {
+  flex-shrink: 0;
+}
+
+.accessory-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
+.acc-price-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.acc-price-val {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}

@@ -1,0 +1,152 @@
+.warranty-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.warranty-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 12px;
+}
+
+.warranty-filter-btn {
+  padding: 8px 16px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.warranty-filter-btn:hover {
+  background-color: var(--bg-surface-secondary);
+  color: var(--text-main);
+}
+
+.warranty-filter-btn.active {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.warranty-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.warranty-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.warranty-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.warranty-card-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.warranty-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background-color: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.warranty-prod-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.warranty-provider-text {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.warranty-dates-box {
+  display: flex;
+  gap: 20px;
+  background-color: var(--bg-surface-secondary);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+}
+
+.date-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.date-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+}
+
+.date-val {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.expiry-highlight {
+  color: var(--danger-text);
+}
+
+.warranty-card-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.inclusions-pill-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.inclusions-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.inc-tag {
+  font-size: 0.6875rem;
+  background-color: var(--success-light);
+  color: var(--success-text);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+}
+
+.warranty-actions {
+  display: flex;
+  gap: 8px;
+}
