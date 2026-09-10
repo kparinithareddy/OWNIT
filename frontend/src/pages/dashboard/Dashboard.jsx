@@ -24,7 +24,9 @@ import {
   Camera as CameraIcon,
   Gamepad2,
   Tag,
-  RotateCcw
+  RotateCcw,
+  Activity,
+  TrendingUp
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card, { StatCard } from '../../components/common/Card';
@@ -59,6 +61,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [warranties, setWarranties] = useState([]);
+  const [lifeScoreMap, setLifeScoreMap] = useState({});
   const [warrantySummary, setWarrantySummary] = useState({
     totalWarranties: 0,
     active: 0,
@@ -89,6 +92,26 @@ export default function Dashboard() {
       setProducts(prodData);
       setWarranties(wList);
       setWarrantySummary(wSum);
+
+      // Async fetch life scores for products in parallel
+      if (prodData && prodData.length > 0) {
+        Promise.all(
+          prodData.map(async (p) => {
+            try {
+              const res = await productsApi.getLifeScore(p.id);
+              return { id: p.id, score: res };
+            } catch (err) {
+              return { id: p.id, score: null };
+            }
+          })
+        ).then((scoreResults) => {
+          const sMap = {};
+          scoreResults.forEach((item) => {
+            if (item.score) sMap[item.id] = item.score;
+          });
+          setLifeScoreMap(sMap);
+        });
+      }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError(err.message || 'Failed to connect to backend.');
@@ -534,10 +557,21 @@ export default function Dashboard() {
                         <span className="item-qty-tag">x{product.quantity}</span>
                       )}
                     </div>
-                    <div className="life-score-placeholder" title="Warranty Components">
-                      <span className="score-label">Coverage:</span>
-                      <span className="score-badge">{pWarranties.length} Tier(s)</span>
-                    </div>
+                    {lifeScoreMap[product.id] ? (
+                      <div
+                        className={`dashboard-life-score-pill ${lifeScoreMap[product.id].color}`}
+                        title={`Life Score: ${lifeScoreMap[product.id].score}/100 (${lifeScoreMap[product.id].grade})`}
+                      >
+                        <Activity size={12} />
+                        <span className="dash-score-num">{lifeScoreMap[product.id].score}</span>
+                        <span className="dash-score-grade">{lifeScoreMap[product.id].grade}</span>
+                      </div>
+                    ) : (
+                      <div className="life-score-placeholder" title="Warranty Components">
+                        <span className="score-label">Coverage:</span>
+                        <span className="score-badge">{pWarranties.length} Tier(s)</span>
+                      </div>
+                    )}
                   </div>
                 </Card>
               );

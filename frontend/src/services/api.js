@@ -101,6 +101,7 @@ export const productsApi = {
   get: (id) => request(`/products/${id}`, { method: 'GET' }),
   getTimeline: (id) => request(`/products/${id}/timeline`, { method: 'GET' }),
   addTimelineEvent: (id, payload) => request(`/products/${id}/timeline`, { method: 'POST', body: payload }),
+  getLifeScore: (id) => request(`/products/${id}/life-score`, { method: 'GET' }),
   create: (payload) => request('/products/', { method: 'POST', body: payload }),
   update: (id, payload) => request(`/products/${id}`, { method: 'PUT', body: payload }),
   delete: (id) => request(`/products/${id}`, { method: 'DELETE' })

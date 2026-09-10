@@ -13,9 +13,11 @@ from app.schemas.timeline import (
     TimelineEventCreate,
     TimelineResponse
 )
+from app.schemas.life_score import LifeScoreResponse
 from app.api.dependencies import get_current_user
 from app.services.product_service import product_service
 from app.services.timeline_service import timeline_service
+from app.services.life_score_service import life_score_service
 
 
 router = APIRouter()
@@ -139,4 +141,21 @@ async def add_lifecycle_event(
     current_user: UserResponse = Depends(get_current_user)
 ) -> TimelineEvent:
     return await timeline_service.add_custom_lifecycle_event(product_id, current_user.id, data)
+
+
+@router.get(
+    "/{product_id}/life-score",
+    response_model=LifeScoreResponse,
+    summary="Get Product Life Score",
+    description="Computes a transparent, rule-based Product Life Score (0-100) with explainable reasons and improvement tips."
+)
+async def get_product_life_score(
+    product_id: str,
+    current_user: UserResponse = Depends(get_current_user)
+) -> LifeScoreResponse:
+    """
+    Computes transparent life score based on warranty coverage, documents, maintenance, device age, and deadlines.
+    """
+    return await life_score_service.calculate_life_score(product_id, current_user.id)
+
 

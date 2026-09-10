@@ -326,6 +326,46 @@
   color: var(--text-muted);
 }
 
+.dashboard-life-score-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.dashboard-life-score-pill.green {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.dashboard-life-score-pill.amber {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.dashboard-life-score-pill.red {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.dash-score-num {
+  font-weight: 800;
+}
+
+.dash-score-grade {
+  font-size: 0.625rem;
+  padding-left: 4px;
+  border-left: 1px solid currentColor;
+  opacity: 0.9;
+}
+
 /* Empty & Error States */
 .dashboard-empty-card {
   text-align: center;

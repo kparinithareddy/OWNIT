@@ -36,7 +36,9 @@ import {
   History,
   Wrench,
   Lightbulb,
-  Building
+  Building,
+  Activity,
+  TrendingUp
 } from 'lucide-react';
 import PageContainer from '../../components/layout/PageContainer';
 import Card from '../../components/common/Card';
@@ -49,6 +51,7 @@ import DocumentUploadModal from '../../components/documents/DocumentUploadModal'
 import WarrantyFormModal from '../../components/warranty/WarrantyFormModal';
 import MaintenanceFormModal from '../../components/maintenance/MaintenanceFormModal';
 import ProductLifecycleTimeline from '../../components/timeline/ProductLifecycleTimeline';
+import ProductLifeScoreCard from '../../components/products/ProductLifeScoreCard';
 import { productsApi, documentsApi, warrantiesApi, maintenanceApi } from '../../services/api';
 import './ProductDetail.css';
 
@@ -85,10 +88,11 @@ export default function ProductDetail() {
   const [warranties, setWarranties] = useState([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
+  const [lifeScore, setLifeScore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Active tab: 'overview' | 'warranties' | 'maintenance' | 'timeline' | 'documents'
+  // Active tab: 'overview' | 'lifescore' | 'warranties' | 'maintenance' | 'timeline' | 'documents'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Modals state
@@ -104,18 +108,23 @@ export default function ProductDetail() {
     try {
       setLoading(true);
       setError(null);
-      const [prodData, docsData, warrantiesData, maintData, recsData] = await Promise.all([
+      const [prodData, docsData, warrantiesData, maintData, recsData, scoreData] = await Promise.all([
         productsApi.get(id),
         documentsApi.list({ productId: id }),
         warrantiesApi.getByProduct(id),
         maintenanceApi.listByProduct(id),
-        maintenanceApi.getRecommendations(id)
+        maintenanceApi.getRecommendations(id),
+        productsApi.getLifeScore(id).catch((e) => {
+          console.warn('Could not load life score:', e);
+          return null;
+        })
       ]);
       setProduct(prodData);
       setDocuments(docsData);
       setWarranties(warrantiesData);
       setMaintenanceRecords(maintData);
       setRecommendations(recsData);
+      setLifeScore(scoreData);
     } catch (err) {
       console.error('Error fetching product details:', err);
       setError(err.message || 'Product not found or access denied.');
@@ -352,6 +361,21 @@ export default function ProductDetail() {
                 <span className="price-tag-qty">Quantity: {product.quantity}</span>
               )}
             </div>
+
+            {lifeScore && (
+              <div
+                className={`hero-life-score-badge ${lifeScore.color}`}
+                onClick={() => setActiveTab('lifescore')}
+                title="Click to view detailed Life Score analysis"
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="hero-score-val">
+                  <Activity size={15} />
+                  <span>{lifeScore.score}/100</span>
+                </div>
+                <span className="hero-score-grade">{lifeScore.grade}</span>
+              </div>
+            )}
           </div>
         </div>
       </Card>
@@ -363,6 +387,12 @@ export default function ProductDetail() {
           onClick={() => setActiveTab('overview')}
         >
           <Layers size={16} /> Asset Overview
+        </button>
+        <button
+          className={`product-tab-btn ${activeTab === 'lifescore' ? 'active' : ''}`}
+          onClick={() => setActiveTab('lifescore')}
+        >
+          <TrendingUp size={16} /> Life Score ({lifeScore ? `${lifeScore.score}/100` : '...'})
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'warranties' ? 'active' : ''}`}
@@ -390,9 +420,25 @@ export default function ProductDetail() {
         </button>
       </div>
 
+      {/* TAB: LIFESCORE */}
+      {activeTab === 'lifescore' && (
+        <ProductLifeScoreCard
+          lifeScore={lifeScore}
+          loading={loading}
+        />
+      )}
+
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Life Score Snapshot Widget in Overview */}
+          {lifeScore && (
+            <ProductLifeScoreCard
+              lifeScore={lifeScore}
+              loading={loading}
+            />
+          )}
+
           {/* Return & Replacement Policy Summary Card */}
           <Card
             title="Return & Replacement Period"
