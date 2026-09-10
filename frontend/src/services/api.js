@@ -207,6 +207,16 @@ export const claimAssistantApi = {
   prepare: (payload) => request('/claim-assistant/prepare', { method: 'POST', body: payload })
 };
 
+// Service History API methods
+export const servicesApi = {
+  listByProduct: (productId) => request(`/services/product/${productId}`, { method: 'GET' }),
+  get: (id) => request(`/services/${id}`, { method: 'GET' }),
+  create: (payload) => request('/services/', { method: 'POST', body: payload }),
+  update: (id, payload) => request(`/services/${id}`, { method: 'PUT', body: payload }),
+  delete: (id) => request(`/services/${id}`, { method: 'DELETE' })
+};
+
+
 
 
 

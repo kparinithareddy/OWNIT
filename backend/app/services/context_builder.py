@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from app.schemas.product import ProductResponse
 from app.schemas.warranty import WarrantyResponse
 from app.schemas.sources import SourceReference
@@ -14,6 +14,7 @@ def build_product_system_context(
     documents: List[Dict[str, Any]],
     maintenance_records: List[Dict[str, Any]],
     recommendations: List[Dict[str, Any]],
+    service_records: Optional[List[Dict[str, Any]]] = None,
     query: str = ""
 ) -> Tuple[str, List[SourceReference]]:
     """
@@ -96,9 +97,26 @@ def build_product_system_context(
             ]
             maint_sections.append("\n".join(m_lines))
     else:
-        maint_sections.append("No past maintenance or service logs recorded.")
+        maint_sections.append("No past routine maintenance logs recorded.")
 
-    # 6. Verified Manufacturer & External Sources Block
+    # 6. Service & Repair History
+    service_sections = []
+    if service_records:
+        for s in service_records:
+            covered_str = "Yes (Warranty Claim)" if s.get("warrantyCovered") else "No (Chargeable / Out-of-Warranty)"
+            s_lines = [
+                f"• [Date: {s.get('serviceDate')}] Defect/Problem: {s.get('problem')}",
+                f"  Authorized Center / Provider: {s.get('serviceCenter')}",
+                f"  Work Performed: {s.get('workPerformed')}",
+                f"  Warranty Covered: {covered_str}",
+                f"  Cost: ₹{s.get('cost', 0):,.2f}" if s.get('cost') is not None else "  Cost: N/A",
+                f"  Notes: {s.get('notes') or 'None'}"
+            ]
+            service_sections.append("\n".join(s_lines))
+    else:
+        service_sections.append("No past official repair or service logs recorded.")
+
+    # 7. Verified Manufacturer & External Sources Block
     source_hierarchy_lines = []
     for s in structured_sources:
         tier_label = {
@@ -134,7 +152,10 @@ When answering questions or checking policies, strictly prioritize information i
 === ATTACHED DOCUMENTS & BILLS ===
 {chr(10).join(doc_sections)}
 
-=== SERVICE & MAINTENANCE HISTORY ===
+=== PAST SERVICE & REPAIR HISTORY ===
+{chr(10).join(service_sections)}
+
+=== ROUTINE MAINTENANCE CARE ===
 {chr(10).join(maint_sections)}
 
 === STRICT INSTRUCTIONS & ETHICAL BOUNDS ===

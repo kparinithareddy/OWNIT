@@ -49,6 +49,11 @@ class TimelineService:
     def maintenance_collection(self):
         return db_manager.get_collection("maintenance_records")
 
+    @property
+    def service_records_collection(self):
+        return db_manager.get_collection("service_records")
+
+
 
     async def ensure_indexes(self):
         try:
@@ -263,7 +268,39 @@ class TimelineService:
                 )
             )
 
-        # 8. Include Custom Service / Maintenance / Repair Events from lifecycle_events
+        # 8. Include Dedicated Service History & Repair Logs
+        if self.service_records_collection is not None:
+            service_cursor = self.service_records_collection.find({"productId": product_id, "userId": user_id})
+            async for s_rec in service_cursor:
+                cost_str = f" • Cost: ₹{s_rec.get('cost', 0):,.2f}" if s_rec.get("cost") else ""
+                warranty_str = " (Warranty Covered)" if s_rec.get("warrantyCovered") else ""
+                events.append(
+                    TimelineEvent(
+                        id=f"service-{s_rec['_id']}",
+                        productId=product.id,
+                        eventType="SERVICE",
+                        title=f"Service: {s_rec.get('problem', 'Repair / Service')}",
+                        description=f"{s_rec.get('workPerformed', '')} by {s_rec.get('serviceCenter', 'Service Center')}{warranty_str}{cost_str}.",
+                        date=s_rec.get("serviceDate", ""),
+                        category="service",
+                        status="completed",
+                        icon="tool",
+                        metadata={
+                            "serviceId": str(s_rec["_id"]),
+                            "problem": s_rec.get("problem"),
+                            "serviceCenter": s_rec.get("serviceCenter"),
+                            "workPerformed": s_rec.get("workPerformed"),
+                            "cost": s_rec.get("cost"),
+                            "warrantyCovered": s_rec.get("warrantyCovered"),
+                            "documentId": s_rec.get("documentId"),
+                            "documentName": s_rec.get("documentName"),
+                            "notes": s_rec.get("notes")
+                        },
+                        createdAt=s_rec.get("createdAt")
+                    )
+                )
+
+        # 9. Include Custom Events from lifecycle_events
         custom_cursor = self.events_collection.find({"productId": product_id, "userId": user_id})
         async for c_event in custom_cursor:
             events.append(
@@ -271,7 +308,7 @@ class TimelineService:
                     id=str(c_event["_id"]),
                     productId=product.id,
                     eventType=c_event.get("eventType", "SERVICE"),
-                    title=c_event.get("title", "Service Event"),
+                    title=c_event.get("title", "Lifecycle Event"),
                     description=c_event.get("description", ""),
                     date=c_event.get("date", ""),
                     category=c_event.get("category", "service"),
@@ -282,7 +319,7 @@ class TimelineService:
                 )
             )
 
-        # 9. Sort chronologically by date ascending, with stable tie-breaking
+        # 10. Sort chronologically by date ascending, with stable tie-breaking
         def sort_key(event: TimelineEvent):
 
             # Parse date safely

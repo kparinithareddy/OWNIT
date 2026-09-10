@@ -63,6 +63,10 @@ class ChatService:
     def maintenance_collection(self):
         return db_manager.get_collection("maintenance_records")
 
+    @property
+    def service_records_collection(self):
+        return db_manager.get_collection("service_records")
+
     async def ensure_indexes(self):
         try:
             col = self.collection
@@ -129,6 +133,11 @@ class ChatService:
         maint_cursor = self.maintenance_collection.find({"productId": data.productId, "userId": user_id})
         maintenance_records = [m async for m in maint_cursor]
 
+        service_records = []
+        if self.service_records_collection is not None:
+            srv_cursor = self.service_records_collection.find({"productId": data.productId, "userId": user_id})
+            service_records = [s async for s in srv_cursor]
+
         recommendations = await maintenance_service.get_preventive_recommendations(data.productId, user_id)
         rec_dicts = [r.model_dump() for r in recommendations]
 
@@ -138,7 +147,8 @@ class ChatService:
             warranties=warranties,
             documents=documents,
             maintenance_records=maintenance_records,
-            recommendations=rec_dicts
+            recommendations=rec_dicts,
+            service_records=service_records
         )
 
         # Retrieve last 10 messages for multi-turn history context

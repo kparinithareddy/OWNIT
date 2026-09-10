@@ -15,6 +15,7 @@ from app.services.warranty_service import warranty_service
 from app.services.notification_service import notification_service
 from app.services.timeline_service import timeline_service
 from app.services.maintenance_service import maintenance_service
+from app.services.service_history_service import service_history_service
 from app.services.chat_service import chat_service
 
 # Configure basic logging
@@ -47,6 +48,7 @@ async def lifespan(app: FastAPI):
         await notification_service.ensure_indexes()
         await timeline_service.ensure_indexes()
         await maintenance_service.ensure_indexes()
+        await service_history_service.ensure_indexes()
         await chat_service.ensure_indexes()
         # Start notification scheduler
         notification_scheduler.start()

@@ -45,6 +45,10 @@ class LifeScoreService:
         return db_manager.get_collection("maintenance_records")
 
     @property
+    def service_records_collection(self):
+        return db_manager.get_collection("service_records")
+
+    @property
     def events_collection(self):
         return db_manager.get_collection("lifecycle_events")
 
@@ -66,7 +70,13 @@ class LifeScoreService:
         maint_cursor = self.maintenance_collection.find({"productId": product_id, "userId": user_id})
         maintenance_records = [m async for m in maint_cursor]
 
-        # 5. Fetch Custom Lifecycle Events
+        # 5. Fetch Service History Records
+        service_records = []
+        if self.service_records_collection is not None:
+            srv_cursor = self.service_records_collection.find({"productId": product_id, "userId": user_id})
+            service_records = [s async for s in srv_cursor]
+
+        # 6. Fetch Custom Lifecycle Events
         events_cursor = self.events_collection.find({"productId": product_id, "userId": user_id})
         custom_events = [e async for e in events_cursor]
 
@@ -75,6 +85,7 @@ class LifeScoreService:
             warranties=warranties,
             documents=documents,
             maintenance_records=maintenance_records,
+            service_records=service_records,
             custom_events=custom_events
         )
 
@@ -84,6 +95,7 @@ class LifeScoreService:
         warranties: List[WarrantyResponse],
         documents: List[Dict[str, Any]],
         maintenance_records: List[Dict[str, Any]],
+        service_records: Optional[List[Dict[str, Any]]] = None,
         custom_events: Optional[List[Dict[str, Any]]] = None
     ) -> LifeScoreResponse:
         factors: List[LifeScoreFactor] = []
@@ -229,6 +241,15 @@ class LifeScoreService:
                 maint_desc = "No maintenance, cleaning, or routine servicing logged yet."
                 improvement_tips.append("Log periodic maintenance, cleaning, or inspections to sustain asset value")
 
+        # Supplement with professional service / repair history records
+        if service_records and len(service_records) > 0:
+            srv_count = len(service_records)
+            maint_score = min(maint_max, maint_score + min(8, srv_count * 4))
+            if maint_score >= 15:
+                maint_status = "positive"
+            maint_desc += f" Verified service history logged ({srv_count} repair/service record(s))."
+            positive_reasons.append(f"Professional service & repair history recorded ({srv_count} record(s))")
+
         total_score += maint_score
         factors.append(LifeScoreFactor(
             name="Maintenance & Care",
@@ -236,7 +257,7 @@ class LifeScoreService:
             maxScore=maint_max,
             status=maint_status,
             description=maint_desc,
-            details=f"{len(completed_maint)} completed, {len(overdue_maint)} overdue"
+            details=f"{len(completed_maint)} maintenance, {len(service_records or [])} service logs"
         ))
 
         # -------------------------------------------------------------

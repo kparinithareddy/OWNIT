@@ -57,7 +57,9 @@ import ProductLifeScoreCard from '../../components/products/ProductLifeScoreCard
 import ProductAIChatWidget from '../../components/ai/ProductAIChatWidget';
 import WarrantyIntelligenceCard from '../../components/warranty/WarrantyIntelligenceCard';
 import WarrantyClaimAssistantModal from '../../components/claim/WarrantyClaimAssistantModal';
-import { productsApi, documentsApi, warrantiesApi, maintenanceApi } from '../../services/api';
+import ServiceFormModal from '../../components/service/ServiceFormModal';
+import ServiceHistoryList from '../../components/service/ServiceHistoryList';
+import { productsApi, documentsApi, warrantiesApi, maintenanceApi, servicesApi } from '../../services/api';
 import './ProductDetail.css';
 
 function getCategoryIcon(cat) {
@@ -92,12 +94,13 @@ export default function ProductDetail() {
   const [documents, setDocuments] = useState([]);
   const [warranties, setWarranties] = useState([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
+  const [serviceRecords, setServiceRecords] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [lifeScore, setLifeScore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Active tab: 'overview' | 'lifescore' | 'warranties' | 'maintenance' | 'timeline' | 'documents'
+  // Active tab: 'overview' | 'lifescore' | 'warranties' | 'maintenance' | 'service' | 'timeline' | 'documents'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Modals state
@@ -107,6 +110,8 @@ export default function ProductDetail() {
   const [selectedWarranty, setSelectedWarranty] = useState(null);
   const [isMaintenanceModalOpen, setIsMaintenanceModalOpen] = useState(false);
   const [selectedMaintenance, setSelectedMaintenance] = useState(null);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [selectedServiceRecord, setSelectedServiceRecord] = useState(null);
   const [isClaimModalOpen, setIsClaimModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -114,11 +119,12 @@ export default function ProductDetail() {
     try {
       setLoading(true);
       setError(null);
-      const [prodData, docsData, warrantiesData, maintData, recsData, scoreData] = await Promise.all([
+      const [prodData, docsData, warrantiesData, maintData, srvData, recsData, scoreData] = await Promise.all([
         productsApi.get(id),
         documentsApi.list({ productId: id }),
         warrantiesApi.getByProduct(id),
         maintenanceApi.listByProduct(id),
+        servicesApi.listByProduct(id).catch(() => []),
         maintenanceApi.getRecommendations(id),
         productsApi.getLifeScore(id).catch((e) => {
           console.warn('Could not load life score:', e);
@@ -129,6 +135,7 @@ export default function ProductDetail() {
       setDocuments(docsData);
       setWarranties(warrantiesData);
       setMaintenanceRecords(maintData);
+      setServiceRecords(srvData);
       setRecommendations(recsData);
       setLifeScore(scoreData);
     } catch (err) {
@@ -283,6 +290,16 @@ export default function ProductDetail() {
             variant="outline"
             icon={Wrench}
             onClick={() => {
+              setSelectedServiceRecord(null);
+              setIsServiceModalOpen(true);
+            }}
+          >
+            + Log Service
+          </Button>
+          <Button
+            variant="outline"
+            icon={Sparkles}
+            onClick={() => {
               setSelectedMaintenance(null);
               setIsMaintenanceModalOpen(true);
             }}
@@ -433,10 +450,16 @@ export default function ProductDetail() {
           <ShieldCheck size={16} /> Warranty Components ({warranties.length})
         </button>
         <button
+          className={`product-tab-btn ${activeTab === 'service' ? 'active' : ''}`}
+          onClick={() => setActiveTab('service')}
+        >
+          <Wrench size={16} /> Service History ({serviceRecords.length})
+        </button>
+        <button
           className={`product-tab-btn ${activeTab === 'maintenance' ? 'active' : ''}`}
           onClick={() => setActiveTab('maintenance')}
         >
-          <Wrench size={16} /> Maintenance & Care ({maintenanceRecords.length})
+          <Sparkles size={16} /> Maintenance & Care ({maintenanceRecords.length})
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
@@ -458,6 +481,24 @@ export default function ProductDetail() {
           product={product}
           warranties={warranties}
           documents={documents}
+        />
+      )}
+
+      {/* TAB: SERVICE HISTORY */}
+      {activeTab === 'service' && (
+        <ServiceHistoryList
+          productId={product.id}
+          productName={product.name}
+          serviceRecords={serviceRecords}
+          onAddNew={() => {
+            setSelectedServiceRecord(null);
+            setIsServiceModalOpen(true);
+          }}
+          onEdit={(rec) => {
+            setSelectedServiceRecord(rec);
+            setIsServiceModalOpen(true);
+          }}
+          onRefresh={fetchProductData}
         />
       )}
 
@@ -1046,6 +1087,19 @@ export default function ProductDetail() {
         productId={product.id}
         productName={product.name}
         initialRecord={selectedMaintenance}
+        availableDocuments={documents}
+        onSuccess={() => {
+          fetchProductData();
+        }}
+      />
+
+      {/* Log / Edit Service Record Modal */}
+      <ServiceFormModal
+        isOpen={isServiceModalOpen}
+        onClose={() => setIsServiceModalOpen(false)}
+        productId={product.id}
+        productName={product.name}
+        initialRecord={selectedServiceRecord}
         availableDocuments={documents}
         onSuccess={() => {
           fetchProductData();
