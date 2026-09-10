@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.database import db_manager
 from app.core.handlers import register_exception_handlers
 from app.api.v1.router import api_v1_router
+from app.services.user_service import user_service
 
 # Configure basic logging
 logging.basicConfig(
@@ -20,16 +21,21 @@ logger = logging.getLogger("ownit.main")
 async def lifespan(app: FastAPI):
     """
     Manages the application lifecycle:
-    - Connects to MongoDB on startup without crashing if offline
+    - Connects to MongoDB on startup
+    - Ensures database indexes (e.g. unique username)
     - Gracefully disconnects MongoDB on shutdown
     """
     logger.info(f"Starting {settings.PROJECT_NAME} v{settings.VERSION}...")
-    # Initialize MongoDB connection
-    await db_manager.connect()
+    # 1. Initialize MongoDB connection
+    is_connected = await db_manager.connect()
+
+    # 2. Ensure indexes if database is reachable
+    if is_connected:
+        await user_service.ensure_indexes()
 
     yield
 
-    # Shutdown logic
+    # 3. Shutdown logic
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
     await db_manager.disconnect()
 
@@ -72,7 +78,7 @@ def create_app() -> FastAPI:
             "version": settings.VERSION,
             "docs": "/docs",
             "health_v1": f"{settings.API_V1_PREFIX}/health",
-            "db_health_v1": f"{settings.API_V1_PREFIX}/health/db"
+            "auth_v1": f"{settings.API_V1_PREFIX}/auth"
         }
 
     return app

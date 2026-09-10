@@ -10,10 +10,19 @@ import {
   LogOut,
   Globe
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import './Navbar.css';
 
 export default function Navbar({ onToggleSidebar }) {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const displayLanguage = (user?.preferredLanguage || 'en').toUpperCase();
 
   return (
     <header className="navbar">
@@ -65,21 +74,26 @@ export default function Navbar({ onToggleSidebar }) {
         {/* Language Indicator */}
         <Link to="/settings" className="navbar-lang-badge" title="Language settings">
           <Globe size={14} />
-          <span>EN</span>
+          <span>{displayLanguage}</span>
         </Link>
 
-        {/* User Profile avatar placeholder */}
+        {/* User Profile avatar */}
         <div className="navbar-user-profile">
           <div className="navbar-avatar">
             <User size={16} />
           </div>
           <div className="navbar-user-info">
-            <span className="navbar-user-name">Demo User</span>
-            <span className="navbar-user-role">Student Demo</span>
+            <span className="navbar-user-name">{user?.username || 'User'}</span>
+            <span className="navbar-user-role">Account Active</span>
           </div>
-          <Link to="/login" className="navbar-logout-btn" title="Switch User / Logout">
+          <button
+            className="navbar-logout-btn"
+            onClick={handleLogout}
+            title="Log Out"
+            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+          >
             <LogOut size={16} />
-          </Link>
+          </button>
         </div>
       </div>
     </header>

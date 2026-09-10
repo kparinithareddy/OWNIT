@@ -1,18 +1,45 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, LogIn, ArrowRight } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { User, Lock, LogIn, ArrowRight, AlertCircle } from 'lucide-react';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
+import { useAuth } from '../../context/AuthContext';
+import { ApiError } from '../../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('demo@ownit.local');
-  const [password, setPassword] = useState('demo1234');
+  const location = useLocation();
+  const { login } = useAuth();
 
-  const handleSubmit = (e) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const from = location.state?.from?.pathname || '/dashboard';
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Placeholder navigation for frontend demo
-    navigate('/dashboard');
+    setErrorMessage('');
+
+    if (!username.trim() || !password) {
+      setErrorMessage('Please enter both username and password.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await login(username.trim(), password);
+      navigate(from, { replace: true });
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage('An unexpected error occurred during login. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -22,19 +49,38 @@ export default function Login() {
           Welcome Back
         </h2>
         <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Sign in to manage your warranties and smart product lifecycle
+          Sign in to access your product assets, warranties & AI assistant
         </p>
       </div>
 
+      {errorMessage && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 14px',
+          backgroundColor: 'var(--danger-light)',
+          color: 'var(--danger)',
+          border: '1px solid var(--danger-border)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: '0.8125rem',
+          marginBottom: '16px'
+        }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         <Input
-          label="Email Address"
-          type="email"
-          icon={Mail}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="your.email@example.com"
+          label="Username"
+          type="text"
+          icon={User}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="e.g. parinitha_reddy"
           required
+          disabled={isSubmitting}
         />
 
         <Input
@@ -45,16 +91,8 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
           required
+          disabled={isSubmitting}
         />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <input type="checkbox" defaultChecked /> Remember me
-          </label>
-          <a href="#forgot" onClick={(e) => e.preventDefault()} style={{ fontSize: '0.8125rem' }}>
-            Forgot password?
-          </a>
-        </div>
 
         <Button
           type="submit"
@@ -62,8 +100,9 @@ export default function Login() {
           icon={LogIn}
           fullWidth
           size="lg"
+          disabled={isSubmitting}
         >
-          Sign In to Dashboard
+          {isSubmitting ? 'Signing In...' : 'Sign In to OWNIT'}
         </Button>
       </form>
 
