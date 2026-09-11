@@ -3,8 +3,8 @@
  * Automatically attaches JWT Bearer token from localStorage to outgoing requests.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-const API_V1_URL = `${API_BASE_URL}/api/v1`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_V1_URL = API_BASE_URL ? `${API_BASE_URL}/api/v1` : '/api/v1';
 
 export class ApiError extends Error {
   constructor(message, status, code, details) {
