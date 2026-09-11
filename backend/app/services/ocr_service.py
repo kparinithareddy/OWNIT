@@ -26,6 +26,9 @@ from app.services.document_service import format_doc_response, validate_magic_by
 
 logger = logging.getLogger("ownit.services.ocr")
 
+TEMP_UPLOAD_DIR = os.path.join(settings.absolute_upload_dir, "temp")
+os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
+
 from app.services.product_extractor import extraction_manager, KNOWN_BRANDS, KNOWN_RETAILERS, CATEGORY_KEYWORDS
 
 

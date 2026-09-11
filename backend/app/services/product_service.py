@@ -1,3 +1,4 @@
+import os
 import logging
 import re
 from datetime import datetime, timezone, timedelta
@@ -431,7 +432,9 @@ class ProductService:
 
     async def delete_product(self, product_id: str, user_id: str) -> bool:
         """
-        Deletes a product document, strictly enforcing user ownership.
+        Deletes a product document and all associated sub-resources (warranties,
+        documents, maintenance records, service records, chat messages, notifications),
+        strictly enforcing user ownership and data isolation.
         """
         if not ObjectId.is_valid(product_id):
             raise NotFoundException(
@@ -450,7 +453,26 @@ class ProductService:
                 details={"productId": product_id}
             )
 
-        logger.info(f"Product deleted: ID {product_id} by user {user_id}")
+        # Cascading deletion of associated product records
+        pid_query = {"productId": product_id, "userId": user_id}
+        await self.db["warranties"].delete_many(pid_query)
+        await self.db["maintenance_records"].delete_many(pid_query)
+        await self.db["service_records"].delete_many(pid_query)
+        await self.db["chat_messages"].delete_many(pid_query)
+        await self.db["notifications"].delete_many(pid_query)
+
+        # For documents, also clean up physical files
+        doc_cursor = self.db["documents"].find(pid_query)
+        async for doc in doc_cursor:
+            storage_path = doc.get("storagePath")
+            if storage_path and os.path.exists(storage_path):
+                try:
+                    os.remove(storage_path)
+                except Exception as e:
+                    logger.warning(f"Failed to delete document file {storage_path}: {e}")
+        await self.db["documents"].delete_many(pid_query)
+
+        logger.info(f"Product deleted: ID {product_id} with all cascaded dependencies by user {user_id}")
         return True
 
 

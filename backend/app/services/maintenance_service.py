@@ -286,5 +286,9 @@ class MaintenanceService:
 
         return [MaintenanceRecommendation(**item) for item in recs_data]
 
+    async def get_preventive_recommendations(self, product_id: str, user_id: str) -> List[MaintenanceRecommendation]:
+        """Alias for get_recommendations_for_product."""
+        return await self.get_recommendations_for_product(product_id, user_id)
+
 
 maintenance_service = MaintenanceService()
