@@ -36,16 +36,30 @@ def format_product_doc(doc: Dict[str, Any]) -> ProductResponse:
     # Compute return status & remaining days (returns ('Unknown', None) if information is missing)
     return_status, days_remaining = calculate_return_status(return_deadline)
 
+    raw_price = doc.get("price")
+    try:
+        price_val = float(raw_price) if raw_price is not None else 0.0
+    except (ValueError, TypeError):
+        price_val = 0.0
+
+    raw_qty = doc.get("quantity")
+    try:
+        qty_val = int(raw_qty) if raw_qty is not None else 1
+    except (ValueError, TypeError):
+        qty_val = 1
+
+    purchase_date = doc.get("purchaseDate") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
     return ProductResponse(
-        id=str(doc["_id"]),
-        userId=str(doc["userId"]),
-        name=doc["name"],
-        brand=doc["brand"],
-        model=doc["model"],
-        category=doc.get("category", "Other"),
-        purchaseDate=doc["purchaseDate"],
-        price=float(doc["price"]),
-        quantity=int(doc.get("quantity", 1)),
+        id=str(doc.get("_id", "")),
+        userId=str(doc.get("userId", "")),
+        name=str(doc.get("name") or "Unnamed Product"),
+        brand=str(doc.get("brand") or "Generic"),
+        model=str(doc.get("model") or "N/A"),
+        category=str(doc.get("category") or "Other"),
+        purchaseDate=str(purchase_date),
+        price=price_val,
+        quantity=qty_val,
         seller=doc.get("seller"),
         serialNumber=doc.get("serialNumber"),
         imei=doc.get("imei"),
@@ -57,8 +71,8 @@ def format_product_doc(doc: Dict[str, Any]) -> ProductResponse:
         returnPolicySource=return_source,
         returnStatus=return_status,
         returnDaysRemaining=days_remaining,
-        createdAt=doc.get("createdAt", datetime.now(timezone.utc)),
-        updatedAt=doc.get("updatedAt", datetime.now(timezone.utc))
+        createdAt=doc.get("createdAt") or datetime.now(timezone.utc),
+        updatedAt=doc.get("updatedAt") or datetime.now(timezone.utc)
     )
 
 
