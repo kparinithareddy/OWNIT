@@ -57,8 +57,9 @@ def seed_and_test_product():
     print("?? SEEDING COMPLETE PRODUCT WITH ALL FEATURES IN OWNIT")
     print("=" * 80)
 
-    username = "demo_user"
-    password = "Password123!"
+    import sys
+    username = sys.argv[1] if len(sys.argv) > 1 else "demo_user"
+    password = sys.argv[2] if len(sys.argv) > 2 else "Password123!"
     
     status, res = api_call("POST", "/auth/login", data={"username": username, "password": password})
     if status != 200:

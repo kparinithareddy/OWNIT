@@ -9,6 +9,7 @@ const API_V1_URL = API_BASE_URL ? `${API_BASE_URL}/api/v1` : '/api/v1';
 export class ApiError extends Error {
   constructor(message, status, code, details) {
     super(message);
+    this.name = 'ApiError';
     this.status = status;
     this.code = code || 'API_ERROR';
     this.details = details || null;
@@ -16,8 +17,14 @@ export class ApiError extends Error {
 }
 
 export async function request(endpoint, options = {}) {
-  const primaryUrl = endpoint.startsWith('http') ? endpoint : `${API_V1_URL}${endpoint}`;
-  const directFallbackUrl = endpoint.startsWith('http') ? endpoint : `http://127.0.0.1:8000/api/v1${endpoint}`;
+  const isAbsolute = endpoint.startsWith('http');
+  const urlsToTry = isAbsolute
+    ? [endpoint]
+    : [
+        `${API_V1_URL}${endpoint}`,
+        `http://127.0.0.1:8000/api/v1${endpoint}`,
+        `http://localhost:8000/api/v1${endpoint}`
+      ];
   
   const headers = {
     ...(options.headers || {})
@@ -45,54 +52,56 @@ export async function request(endpoint, options = {}) {
     body
   };
 
-  try {
-    let response;
+  let lastNetworkError = null;
+
+  for (const url of urlsToTry) {
     try {
-      response = await fetch(primaryUrl, config);
-    } catch (primaryErr) {
-      // If primary relative request failed, auto-fallback to direct backend URL
-      if (primaryUrl !== directFallbackUrl) {
-        response = await fetch(directFallbackUrl, config);
-      } else {
-        throw primaryErr;
-      }
-    }
+      const response = await fetch(url, config);
 
-    let data = null;
-    const contentType = response.headers.get('content-type');
-    
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
-    }
-
-    if (!response.ok) {
-      let errorMessage = 'A network error occurred. Please try again.';
-      let errorCode = `HTTP_${response.status}`;
-      let errorDetails = null;
-
-      if (data && data.error) {
-        errorMessage = data.error.message || errorMessage;
-        errorCode = data.error.code || errorCode;
-        errorDetails = data.error.details || null;
-      } else if (data && data.detail) {
-        errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+      let data = null;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
       }
 
-      throw new ApiError(errorMessage, response.status, errorCode, errorDetails);
-    }
+      if (!response.ok) {
+        let errorMessage = 'A network error occurred. Please try again.';
+        let errorCode = `HTTP_${response.status}`;
+        let errorDetails = null;
 
-    return data;
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
+        if (data && data.error) {
+          errorMessage = data.error.message || errorMessage;
+          errorCode = data.error.code || errorCode;
+          errorDetails = data.error.details || null;
+        } else if (data && data.detail) {
+          errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+        }
+
+        if (response.status === 401) {
+          localStorage.removeItem('ownit_token');
+          localStorage.removeItem('ownit_user');
+        }
+
+        throw new ApiError(errorMessage, response.status, errorCode, errorDetails);
+      }
+
+      return data;
+    } catch (error) {
+      if (error instanceof ApiError || error?.name === 'ApiError' || typeof error?.status === 'number') {
+        throw error;
+      }
+      lastNetworkError = error;
+      // Continue loop to try next fallback URL
     }
-    // Network or offline error
-    throw new ApiError(
-      'Unable to connect to OWNIT backend service. Please ensure the server is running.',
-      0,
-      'NETWORK_ERROR'
-    );
   }
+
+  throw new ApiError(
+    'Unable to connect to OWNIT backend service. Please ensure the server is running.',
+    0,
+    'NETWORK_ERROR',
+    lastNetworkError?.message
+  );
 }
 
 // Authentication API methods
