@@ -58,6 +58,15 @@ import DocumentUploadModal from '../../components/documents/DocumentUploadModal'
 import WarrantyFormModal from '../../components/warranty/WarrantyFormModal';
 import MaintenanceFormModal from '../../components/maintenance/MaintenanceFormModal';
 import ProductLifecycleTimeline from '../../components/timeline/ProductLifecycleTimeline';
+
+function parseList(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.filter(Boolean);
+  if (typeof val === 'string') {
+    return val.split(/[;\n•|]+/).map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
 import ProductLifeScoreCard from '../../components/products/ProductLifeScoreCard';
 import ProductAIChatWidget from '../../components/ai/ProductAIChatWidget';
 import WarrantyIntelligenceCard from '../../components/warranty/WarrantyIntelligenceCard';
@@ -922,11 +931,11 @@ export default function ProductDetail() {
                     </div>
 
                     {/* Benefits & Inclusions */}
-                    {w.benefits && w.benefits.length > 0 && (
+                    {parseList(w.benefits).length > 0 && (
                       <div className="w-comp-details-section">
                         <span className="w-details-title">Covered Inclusions:</span>
                         <div className="w-tags-row">
-                          {w.benefits.map((b, idx) => (
+                          {parseList(w.benefits).map((b, idx) => (
                             <span key={idx} className="w-benefit-chip">✓ {b}</span>
                           ))}
                         </div>
@@ -934,11 +943,11 @@ export default function ProductDetail() {
                     )}
 
                     {/* Exclusions */}
-                    {w.exclusions && w.exclusions.length > 0 && (
+                    {parseList(w.exclusions).length > 0 && (
                       <div className="w-comp-details-section">
                         <span className="w-details-title">Exclusions:</span>
                         <div className="w-tags-row">
-                          {w.exclusions.map((ex, idx) => (
+                          {parseList(w.exclusions).map((ex, idx) => (
                             <span key={idx} className="w-exclusion-chip">✕ {ex}</span>
                           ))}
                         </div>

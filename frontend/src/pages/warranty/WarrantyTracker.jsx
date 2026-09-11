@@ -20,6 +20,15 @@ import LoadingState from '../../components/common/LoadingState';
 import { warrantiesApi, productsApi } from '../../services/api';
 import './WarrantyTracker.css';
 
+function parseList(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.filter(Boolean);
+  if (typeof val === 'string') {
+    return val.split(/[;\n•|]+/).map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 export default function WarrantyTracker() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('All'); // 'All' | 'Active' | 'Expiring Soon' | 'Expired'
@@ -39,22 +48,27 @@ export default function WarrantyTracker() {
       setLoading(true);
       setError(null);
       const [wList, wSummary, prodList] = await Promise.all([
-        warrantiesApi.list(),
-        warrantiesApi.getSummary(),
-        productsApi.list()
+        warrantiesApi.list().catch(() => []),
+        warrantiesApi.getSummary().catch(() => null),
+        productsApi.list().catch(() => [])
       ]);
-      setWarranties(wList || []);
+      const validWarranties = Array.isArray(wList) ? wList : [];
+      setWarranties(validWarranties);
       setSummary({
-        totalWarranties: wSummary?.totalWarranties || (wList || []).length || 0,
+        totalWarranties: wSummary?.totalWarranties || validWarranties.length || 0,
         active: wSummary?.activeCount ?? wSummary?.active ?? 0,
         expiringSoon: wSummary?.expiringSoonCount ?? wSummary?.expiringSoon ?? 0,
         expired: wSummary?.expiredCount ?? wSummary?.expired ?? 0
       });
 
       const pMap = {};
-      prodList.forEach((p) => {
-        pMap[p.id] = p;
-      });
+      if (Array.isArray(prodList)) {
+        prodList.forEach((p) => {
+          if (p && p.id) {
+            pMap[p.id] = p;
+          }
+        });
+      }
       setProductsMap(pMap);
     } catch (err) {
       console.error('Error loading warranties:', err);
@@ -68,7 +82,7 @@ export default function WarrantyTracker() {
     fetchWarrantiesData();
   }, []);
 
-  const filteredItems = warranties.filter((item) => {
+  const filteredItems = (Array.isArray(warranties) ? warranties : []).filter((item) => {
     if (filter === 'All') return true;
     return item.status === filter;
   });
@@ -166,13 +180,17 @@ export default function WarrantyTracker() {
         /* Warranty List */
         <div className="warranty-cards-list">
           {filteredItems.map((item) => {
-            const product = productsMap[item.productId];
+            const product = item.productId ? productsMap[item.productId] : null;
             const isExpiring = item.status === 'Expiring Soon';
             const isExpired = item.status === 'Expired';
             const badgeVariant = isExpiring ? 'warning' : isExpired ? 'danger' : 'active';
+            const benefitsList = parseList(item.benefits);
+            const daysRemainingText = typeof item.daysRemaining === 'number'
+              ? (item.daysRemaining < 0 ? `${Math.abs(item.daysRemaining)}d ago` : `${item.daysRemaining}d left`)
+              : '';
 
             return (
-              <Card key={item.id} className="warranty-card" padding="md">
+              <Card key={item.id || Math.random()} className="warranty-card" padding="md">
                 <div className="warranty-card-main">
                   <div className="warranty-card-left">
                     <div className="warranty-avatar">
@@ -181,18 +199,20 @@ export default function WarrantyTracker() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <h3 className="warranty-prod-title">
-                          {product ? product.name : 'Linked Product'}
+                          {product ? product.name : (item.productName || 'Linked Product')}
                         </h3>
-                        <Badge variant="neutral" size="sm">
-                          {item.type}
-                        </Badge>
+                        {item.type && (
+                          <Badge variant="neutral" size="sm">
+                            {item.type}
+                          </Badge>
+                        )}
                         <Badge variant={badgeVariant} size="sm" dot>
-                          {item.status} ({item.daysRemaining < 0 ? `${Math.abs(item.daysRemaining)}d ago` : `${item.daysRemaining}d left`})
+                          {item.status || 'Active'}{daysRemainingText ? ` (${daysRemainingText})` : ''}
                         </Badge>
                       </div>
                       <p className="warranty-provider-text">
-                        Provider: <strong>{item.provider}</strong> &bull; Duration: {item.duration}
-                        {product && product.brand ? ` &bull; Brand: ${product.brand}` : ''}
+                        Provider: <strong>{item.provider || 'Manufacturer'}</strong>{item.duration ? ` • Duration: ${item.duration}` : ''}
+                        {product && product.brand ? ` • Brand: ${product.brand}` : ''}
                       </p>
                     </div>
                   </div>
@@ -200,7 +220,7 @@ export default function WarrantyTracker() {
                   <div className="warranty-dates-box">
                     <div className="date-block">
                       <span className="date-label">Start Date</span>
-                      <span className="date-val">{item.startDate}</span>
+                      <span className="date-val">{item.startDate || 'N/A'}</span>
                     </div>
                     <div className="date-block">
                       <span className="date-label">Expires On</span>
@@ -213,10 +233,10 @@ export default function WarrantyTracker() {
 
                 <div className="warranty-card-sub">
                   <div className="inclusions-pill-row">
-                    {item.benefits && item.benefits.length > 0 ? (
+                    {benefitsList.length > 0 ? (
                       <>
                         <span className="inclusions-label">Inclusions:</span>
-                        {item.benefits.map((inc, i) => (
+                        {benefitsList.map((inc, i) => (
                           <span key={i} className="inc-tag">✓ {inc}</span>
                         ))}
                       </>
@@ -230,7 +250,7 @@ export default function WarrantyTracker() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/products/${item.productId}`)}
+                      onClick={() => navigate(item.productId ? `/products/${item.productId}` : '/products')}
                     >
                       View Product & Claims
                     </Button>
