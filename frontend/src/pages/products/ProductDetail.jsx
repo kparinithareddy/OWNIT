@@ -288,7 +288,7 @@ export default function ProductDetail() {
         </Link>
       }
       title={product.name}
-      subtitle={`${product.brand} • Model: ${product.model}`}
+      subtitle={null}
       actions={
         <div className="product-header-actions">
           <Button
@@ -365,14 +365,19 @@ export default function ProductDetail() {
         <div className="hero-grid">
           <div className="hero-left">
             <div className="hero-avatar">
-              <IconComponent size={36} />
+              <IconComponent size={32} />
             </div>
             <div className="hero-info">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+              <div className="hero-badge-strip">
+                <span className="hero-brand-pill">{product.brand}</span>
                 <Badge variant="info" size="sm">
                   {product.category}
                 </Badge>
-                <span className="hero-brand">{product.brand}</span>
+                {product.model && (
+                  <span className="hero-model-pill">
+                    <Hash size={11} /> Model: {product.model}
+                  </span>
+                )}
 
                 {/* Return Window Badge */}
                 {returnStatus !== 'Unknown' && (
@@ -386,7 +391,7 @@ export default function ProductDetail() {
                 {warranties.length > 0 ? (
                   expiringWarrantiesCount > 0 ? (
                     <Badge variant="warning" size="sm" dot>
-                      {expiringWarrantiesCount} Warranty Expiring Soon
+                      {expiringWarrantiesCount} Expiring Soon
                     </Badge>
                   ) : activeWarrantiesCount > 0 ? (
                     <Badge variant="active" size="sm" dot>
@@ -394,7 +399,7 @@ export default function ProductDetail() {
                     </Badge>
                   ) : (
                     <Badge variant="danger" size="sm" dot>
-                      Warranties Expired
+                      Warranty Expired
                     </Badge>
                   )
                 ) : (
@@ -403,8 +408,27 @@ export default function ProductDetail() {
                   </Badge>
                 )}
               </div>
+
               <h2 className="hero-title">{product.name}</h2>
-              <p className="hero-model">{product.model}</p>
+
+              <div className="hero-meta-inline">
+                {product.seller && (
+                  <span className="hero-meta-chip">
+                    <Store size={13} /> Store: {product.seller}
+                  </span>
+                )}
+                {product.purchaseDate && (
+                  <span className="hero-meta-chip">
+                    <Calendar size={13} /> Purchased: {product.purchaseDate}
+                  </span>
+                )}
+                {product.serialNumber && (
+                  <span className="hero-meta-chip">
+                    <Hash size={13} /> S/N: {product.serialNumber}
+                  </span>
+                )}
+              </div>
+
               {product.notes && <p className="hero-desc">{product.notes}</p>}
             </div>
           </div>

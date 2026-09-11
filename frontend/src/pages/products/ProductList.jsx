@@ -449,17 +449,25 @@ export default function ProductList() {
               >
                 <div className="product-card-top">
                   <div className="product-avatar">
-                    <IconComponent size={22} />
+                    <IconComponent size={20} />
                   </div>
-                  <Badge variant="info" size="sm">
-                    {product.category}
-                  </Badge>
+                  <div className="product-card-top-badges">
+                    <span className="product-brand-tag">{product.brand}</span>
+                    <Badge variant="info" size="sm">
+                      {product.category}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className="product-card-info">
-                  <span className="product-brand-tag">{product.brand}</span>
-                  <h3 className="product-title">{product.name}</h3>
-                  <p className="product-model">{product.model}</p>
+                  <h3 className="product-title" title={product.name}>{product.name}</h3>
+                  {product.model && (
+                    <div className="product-model-row">
+                      <span className="product-model-chip">
+                        <Hash size={11} /> Model: {product.model}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="product-card-meta">

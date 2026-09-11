@@ -39,6 +39,16 @@ function renderSourceIcon(sourceType) {
   }
 }
 
+function formatProductName(brand, name) {
+  if (!name) return brand || 'Product';
+  if (!brand) return name;
+  if (name.toLowerCase().startsWith(brand.toLowerCase())) {
+    return name;
+  }
+  return `${brand} ${name}`;
+}
+
+
 export default function AIAssistant() {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
@@ -287,7 +297,7 @@ export default function AIAssistant() {
 
   return (
     <PageContainer
-      title={contextMode === 'product' && currentProduct ? `AI Assistant · ${currentProduct.brand} ${currentProduct.name}` : 'Global OWNIT AI Assistant'}
+      title={contextMode === 'product' && currentProduct ? `AI Assistant · ${formatProductName(currentProduct.brand, currentProduct.name)}` : 'Global OWNIT AI Assistant'}
       subtitle={contextMode === 'product' ? 'Context-anchored assistant for warranties, manuals, maintenance, and support.' : 'Unified intelligence across your entire product catalog, warranties, and receipts.'}
       actions={
         <div className="ai-status-tag">
@@ -360,7 +370,7 @@ export default function AIAssistant() {
                   >
                     {products.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.brand} {p.name}
+                        {formatProductName(p.brand, p.name)} {p.model ? `(${p.model})` : ''}
                       </option>
                     ))}
                   </select>
@@ -424,7 +434,7 @@ export default function AIAssistant() {
                     <>
                       <Package size={18} className="banner-icon-product" />
                       <div>
-                        <div className="banner-title">{currentProduct.brand} {currentProduct.name}</div>
+                        <div className="banner-title">{formatProductName(currentProduct.brand, currentProduct.name)}</div>
                         <div className="banner-sub">Model: {currentProduct.model || 'N/A'} · Category: {currentProduct.category} · Life Score: {currentProduct.lifeScore || 80}/100</div>
                       </div>
                     </>
