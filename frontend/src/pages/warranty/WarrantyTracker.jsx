@@ -43,8 +43,13 @@ export default function WarrantyTracker() {
         warrantiesApi.getSummary(),
         productsApi.list()
       ]);
-      setWarranties(wList);
-      setSummary(wSummary);
+      setWarranties(wList || []);
+      setSummary({
+        totalWarranties: wSummary?.totalWarranties || (wList || []).length || 0,
+        active: wSummary?.activeCount ?? wSummary?.active ?? 0,
+        expiringSoon: wSummary?.expiringSoonCount ?? wSummary?.expiringSoon ?? 0,
+        expired: wSummary?.expiredCount ?? wSummary?.expired ?? 0
+      });
 
       const pMap = {};
       prodList.forEach((p) => {
