@@ -92,9 +92,14 @@ export default function Dashboard() {
         warrantiesApi.getSummary(),
         recallsApi.vaultScan().catch(() => ({ alerts: [] }))
       ]);
-      setProducts(prodData);
-      setWarranties(wList);
-      setWarrantySummary(wSum);
+      setProducts(prodData || []);
+      setWarranties(wList || []);
+      setWarrantySummary({
+        totalWarranties: wSum?.totalWarranties || 0,
+        active: wSum?.activeCount ?? wSum?.active ?? 0,
+        expiringSoon: wSum?.expiringSoonCount ?? wSum?.expiringSoon ?? 0,
+        expired: wSum?.expiredCount ?? wSum?.expired ?? 0
+      });
       setVaultRecalls(recallData?.alerts || []);
 
       // Async fetch life scores for products in parallel

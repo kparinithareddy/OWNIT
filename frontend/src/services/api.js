@@ -16,7 +16,9 @@ export class ApiError extends Error {
 }
 
 export async function request(endpoint, options = {}) {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_V1_URL}${endpoint}`;
+  const primaryUrl = endpoint.startsWith('http') ? endpoint : `${API_V1_URL}${endpoint}`;
+  const directFallbackUrl = endpoint.startsWith('http') ? endpoint : `http://127.0.0.1:8000/api/v1${endpoint}`;
+  
   const headers = {
     ...(options.headers || {})
   };
@@ -44,7 +46,18 @@ export async function request(endpoint, options = {}) {
   };
 
   try {
-    const response = await fetch(url, config);
+    let response;
+    try {
+      response = await fetch(primaryUrl, config);
+    } catch (primaryErr) {
+      // If primary relative request failed, auto-fallback to direct backend URL
+      if (primaryUrl !== directFallbackUrl) {
+        response = await fetch(directFallbackUrl, config);
+      } else {
+        throw primaryErr;
+      }
+    }
+
     let data = null;
     const contentType = response.headers.get('content-type');
     
