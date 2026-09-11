@@ -149,7 +149,7 @@ class ClaimAssistantService:
                 ),
                 ClaimFieldItem(
                     label="Policy Duration",
-                    value=selected_warranty.duration,
+                    value=str(selected_warranty.duration or (f"{selected_warranty.durationMonths} Months" if getattr(selected_warranty, 'durationMonths', None) else "Standard Term")),
                     provenance=ClaimProvenanceType.DOCUMENT_VERIFIED,
                     notes="Coverage term"
                 )
