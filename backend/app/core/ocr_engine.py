@@ -3,7 +3,7 @@ import io
 import re
 import logging
 from typing import Tuple, List, Dict, Any, Optional
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import pytesseract
 import pymupdf
 
@@ -30,7 +30,14 @@ class OCREngine:
             return False
 
     @classmethod
-    def preprocess_image(cls, image: Image.Image) -> Image.Image:
+    def preprocess_image(cls, image: Image.Image) -> Tuple[Image.Image, Image.Image]:
+        """
+        Multi-stage preprocessor for receipt images:
+        1. Alpha normalization
+        2. High-DPI upscaling
+        3. Autocontrast & contrast enhancement
+        4. Sharpening & adaptive binary thresholding
+        """
         try:
             if image.mode in ("RGBA", "LA", "P"):
                 background = Image.new("RGB", image.size, (255, 255, 255))
@@ -39,59 +46,87 @@ class OCREngine:
                 else:
                     background.paste(image)
                 image = background
+            elif image.mode != "RGB":
+                image = image.convert("RGB")
 
-            gray = image.convert("L")
-            width, height = gray.size
-            if width < 1200 and height < 1200:
-                scale_factor = max(1.5, 1200.0 / max(width, 1))
+            width, height = image.size
+            if max(width, height) < 2000:
+                scale_factor = max(2.0, 2400.0 / max(width, height, 1))
                 new_size = (int(width * scale_factor), int(height * scale_factor))
-                gray = gray.resize(new_size, Image.Resampling.LANCZOS)
+                image = image.resize(new_size, Image.Resampling.LANCZOS)
+
+            gray = ImageOps.grayscale(image)
+            gray = ImageOps.autocontrast(gray, cutoff=1)
 
             enhancer = ImageEnhance.Contrast(gray)
             enhanced = enhancer.enhance(1.8)
             sharpened = enhanced.filter(ImageFilter.SHARPEN)
-            return sharpened
+
+            # Binary threshold image
+            binary = sharpened.point(lambda p: 255 if p > 145 else 0, mode="1")
+
+            return sharpened, binary
         except Exception as exc:
             logger.warning(f"Image preprocessing error, continuing with original: {exc}")
-            return image
+            return image, image
 
     @classmethod
     def extract_text_from_image_bytes(cls, image_bytes: bytes) -> Tuple[str, Dict[str, Any]]:
-        metadata = {"pageCount": 1, "ocrEngine": "tesseract"}
+        metadata = {"pageCount": 1, "ocrEngine": "tesseract_multipass"}
         try:
             image = Image.open(io.BytesIO(image_bytes))
             metadata["originalSize"] = list(image.size)
             metadata["originalMode"] = image.mode
 
-            # Try multi-pass extraction (PSM 3 default, PSM 6 uniform, PSM 11 sparse)
-            best_text = ""
-            
-            # Pass 1: Raw image with auto page segmentation
+            sharpened, binary = cls.preprocess_image(image)
+
+            passes = []
+
+            # Pass 1: Enhanced grayscale with PSM 6 (Single uniform block of text - ideal for receipts)
             try:
-                raw_text = pytesseract.image_to_string(image, config=r"--oem 3 --psm 3").strip()
-                if len(raw_text) > len(best_text):
-                    best_text = raw_text
+                t1 = pytesseract.image_to_string(sharpened, config=r"--oem 3 --psm 6").strip()
+                if t1:
+                    passes.append(t1)
             except Exception:
                 pass
 
-            # Pass 2: Preprocessed (scaled, enhanced contrast) with PSM 6
-            processed = cls.preprocess_image(image)
+            # Pass 2: Enhanced grayscale with PSM 4 (Single column variable size)
             try:
-                p_text = pytesseract.image_to_string(processed, config=r"--oem 3 --psm 6").strip()
-                if len(p_text) > len(best_text):
-                    best_text = p_text
+                t2 = pytesseract.image_to_string(sharpened, config=r"--oem 3 --psm 4").strip()
+                if t2:
+                    passes.append(t2)
             except Exception:
                 pass
 
-            # Pass 3: Preprocessed with default config
-            if len(best_text) < 30:
-                try:
-                    p3_text = pytesseract.image_to_string(processed).strip()
-                    if len(p3_text) > len(best_text):
-                        best_text = p3_text
-                except Exception:
-                    pass
+            # Pass 3: Binary threshold with PSM 6
+            try:
+                t3 = pytesseract.image_to_string(binary, config=r"--oem 3 --psm 6").strip()
+                if t3:
+                    passes.append(t3)
+            except Exception:
+                pass
 
+            # Pass 4: Auto page segmentation (PSM 3)
+            try:
+                t4 = pytesseract.image_to_string(sharpened, config=r"--oem 3 --psm 3").strip()
+                if t4:
+                    passes.append(t4)
+            except Exception:
+                pass
+
+            if not passes:
+                return "", metadata
+
+            # Score each pass by density of key receipt indicators and alphanumeric text
+            def score_pass(text: str) -> int:
+                score = len(text)
+                anchors = ["invoice", "tax", "date", "serial", "model", "brand", "total", "warranty", "amount", "gst", "price", "subtotal", "receipt"]
+                for a in anchors:
+                    if re.search(r"\b" + a + r"\b", text, re.IGNORECASE):
+                        score += 150
+                return score
+
+            best_text = max(passes, key=score_pass)
             return best_text.strip(), metadata
         except Exception as exc:
             logger.error(f"Failed to extract text from image: {exc}")
