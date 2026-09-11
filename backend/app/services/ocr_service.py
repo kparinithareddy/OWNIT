@@ -61,7 +61,8 @@ class ReceiptParser:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 candidate = match.group(1).strip()
-                if candidate.lower() not in ("cashier", "customer", "invoice", "details", "original"):
+                candidate = re.sub(r"\s+(?:Purchase\s*Date|Invoice\s*Date|Order\s*Date|Date|GSTIN|Phone|Email|Bill|Order).*", "", candidate, flags=re.IGNORECASE).strip()
+                if candidate.lower() not in ("cashier", "customer", "invoice", "details", "original") and len(candidate) > 2:
                     return candidate.split("\n")[0].strip()
 
         # 3. Fallback: inspect top lines of receipt

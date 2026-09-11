@@ -173,21 +173,60 @@ class RuleBasedProductExtractor(BaseProductExtractor):
         imei = doc_metadata.get("imei")
         warranty_info = doc_metadata.get("warrantyInfo")
 
+        # 1. First check if document has explicit labeled product key-value pairs (e.g. Product Name : ...)
+        explicit_name_m = re.search(
+            r"(?:Product\s*Name|Item\s*Name|Device\s*Name)\s*[:=\-]\s*([A-Za-z0-9\s\-_+()/,]+?)(?:\s*(?:Model|Serial|IMEI|Purchase|Order|Price|\n|$))",
+            raw_text,
+            re.IGNORECASE
+        )
+        if explicit_name_m:
+            raw_pname = explicit_name_m.group(1).strip()
+            clean_pname = re.sub(r"\s+[a-z]{1,2}$", "", raw_pname).strip()
+            if clean_pname and len(clean_pname) > 3:
+                brand = self.detect_brand(clean_pname) or self.detect_brand(raw_text)
+                category = self.infer_category(clean_pname)
+                if category == "Other":
+                    category = self.infer_category(raw_text)
+
+                model_m = re.search(r"Model\s*(?:Number|No|#)?\s*[:=\-\s]*([A-Za-z0-9\-_]+)", raw_text, re.IGNORECASE)
+                model = model_m.group(1).strip() if model_m else None
+
+                serial_m = re.search(r"Serial\s*(?:Number|No|#)?\s*[:=\-\s]*([A-Za-z0-9]+)", raw_text, re.IGNORECASE)
+                serial = serial_m.group(1).strip() if serial_m else serial_no
+
+                imei_m = re.search(r"IMEI\b[^\d\n]*\d?\s*(\d{14,16})", raw_text, re.IGNORECASE)
+                extracted_imei = imei_m.group(1).strip() if imei_m else imei
+
+                return [OCRExtractedItem(
+                    name=clean_pname[:150],
+                    brand=brand,
+                    model=model,
+                    category=category,
+                    purchaseDate=purchase_date,
+                    price=total_amount,
+                    quantity=1,
+                    seller=seller,
+                    serialNumber=serial,
+                    imei=extracted_imei,
+                    warrantyInfo=warranty_info,
+                    confidence=0.92,
+                    confidenceLevel="high",
+                    uncertainFields=[]
+                )]
+
+        # 2. Otherwise parse multi-line tabular receipt items
         lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
         candidate_items: List[OCRExtractedItem] = []
 
-        # Find lines that contain candidate products (e.g. Samsung TV, LG Refrigerator, Sony Headphones)
         item_lines = []
         for line in lines:
-            # Skip noise / tax / footer lines
-            if re.search(r"(tax invoice|subtotal|gstin|cgst|sgst|authorized signatory|thank you|visit again|return policy|grand total|net amount|amount paid|total amount|bill of supply)", line, re.IGNORECASE):
+            # Skip noise / tax / customer / footer lines
+            if re.search(r"(tax invoice|subtotal|gstin|cgst|sgst|authorized|thank you|visit again|return policy|grand total|net amount|amount paid|total amount|bill of supply|bill to|order no|payment mode|salesperson|phone:|email:|place of supply|warranty card|terms and conditions|what's covered|what's not covered)", line, re.IGNORECASE):
                 continue
             
             # Check if line contains a brand, category keyword, or typical item structure
             has_brand = self.detect_brand(line) is not None
             has_cat = self.infer_category(line) != "Other"
-            
-            # Or line starts with numbered list e.g. "1. Samsung TV", "2. LG Refrigerator"
             is_numbered_item = re.match(r"^\s*\d+[\.\)]\s+[A-Za-z]", line) is not None
 
             if has_brand or has_cat or is_numbered_item:

@@ -63,14 +63,36 @@ class OCREngine:
             metadata["originalSize"] = list(image.size)
             metadata["originalMode"] = image.mode
 
-            processed = cls.preprocess_image(image)
-            custom_config = r"--oem 3 --psm 6"
+            # Try multi-pass extraction (PSM 3 default, PSM 6 uniform, PSM 11 sparse)
+            best_text = ""
+            
+            # Pass 1: Raw image with auto page segmentation
             try:
-                extracted_text = pytesseract.image_to_string(processed, config=custom_config)
+                raw_text = pytesseract.image_to_string(image, config=r"--oem 3 --psm 3").strip()
+                if len(raw_text) > len(best_text):
+                    best_text = raw_text
             except Exception:
-                extracted_text = pytesseract.image_to_string(processed)
+                pass
 
-            return extracted_text.strip(), metadata
+            # Pass 2: Preprocessed (scaled, enhanced contrast) with PSM 6
+            processed = cls.preprocess_image(image)
+            try:
+                p_text = pytesseract.image_to_string(processed, config=r"--oem 3 --psm 6").strip()
+                if len(p_text) > len(best_text):
+                    best_text = p_text
+            except Exception:
+                pass
+
+            # Pass 3: Preprocessed with default config
+            if len(best_text) < 30:
+                try:
+                    p3_text = pytesseract.image_to_string(processed).strip()
+                    if len(p3_text) > len(best_text):
+                        best_text = p3_text
+                except Exception:
+                    pass
+
+            return best_text.strip(), metadata
         except Exception as exc:
             logger.error(f"Failed to extract text from image: {exc}")
             raise
@@ -109,11 +131,12 @@ class OCREngine:
     @classmethod
     def extract_text_from_docx_bytes(cls, docx_bytes: bytes) -> Tuple[str, Dict[str, Any]]:
         """
-        Extracts paragraphs, table rows, and structured text from a DOCX Word document.
+        Extracts paragraphs, table rows, and any embedded scanned images from a DOCX Word document.
         """
         paragraphs: List[str] = []
         metadata = {"pageCount": 1, "ocrEngine": "python_docx"}
 
+        # 1. Extract digital text from paragraphs and tables
         try:
             import docx
             doc = docx.Document(io.BytesIO(docx_bytes))
@@ -127,9 +150,6 @@ class OCREngine:
                     row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
                     if row_cells:
                         paragraphs.append(" | ".join(row_cells))
-
-            text = "\n".join(paragraphs).strip()
-            return text, metadata
         except Exception as exc:
             logger.warning(f"python-docx extraction failed, trying zipfile XML parser: {exc}")
             import zipfile
@@ -143,8 +163,32 @@ class OCREngine:
                     texts = [node.text for node in p.iterfind(".//w:t", ns) if node.text]
                     if texts:
                         paragraphs.append("".join(texts).strip())
-                text = "\n".join(paragraphs).strip()
-                return text, metadata
             except Exception as e:
                 logger.error(f"DOCX XML extraction also failed: {e}")
-                return "", {"pageCount": 1, "ocrEngine": "python_docx", "error": str(e)}
+
+        # 2. Extract and OCR any embedded images in word/media/
+        try:
+            import zipfile
+            with zipfile.ZipFile(io.BytesIO(docx_bytes)) as z:
+                media_files = [
+                    name for name in z.namelist()
+                    if name.startswith("word/media/") and any(
+                        name.lower().endswith(ext)
+                        for ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".gif"]
+                    )
+                ]
+                for img_name in media_files:
+                    img_bytes = z.read(img_name)
+                    if len(img_bytes) > 2048:  # ignore tiny icons / bullets
+                        logger.info(f"Found embedded image {img_name} ({len(img_bytes)} bytes) in DOCX. Running OCR...")
+                        try:
+                            img_text, _ = cls.extract_text_from_image_bytes(img_bytes)
+                            if img_text.strip():
+                                paragraphs.append(f"--- Document Content ({img_name}) ---\n{img_text.strip()}")
+                        except Exception as ocr_err:
+                            logger.warning(f"OCR failed for embedded image {img_name}: {ocr_err}")
+        except Exception as media_err:
+            logger.warning(f"Could not inspect embedded media in DOCX: {media_err}")
+
+        text = "\n".join(paragraphs).strip()
+        return text, metadata
