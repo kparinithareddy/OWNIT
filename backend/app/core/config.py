@@ -42,7 +42,11 @@ class Settings(BaseSettings):
         "image/jpeg",
         "image/png",
         "image/webp",
-        "image/gif"
+        "image/gif",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        "application/octet-stream",
+        "application/zip"
     ]
     ALLOWED_EXTENSIONS: List[str] = [
         ".pdf",
@@ -50,7 +54,9 @@ class Settings(BaseSettings):
         ".jpeg",
         ".png",
         ".webp",
-        ".gif"
+        ".gif",
+        ".docx",
+        ".doc"
     ]
 
     # OCR & AI Settings (Local services - Ollama LLM & Tesseract OCR)

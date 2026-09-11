@@ -105,3 +105,46 @@ class OCREngine:
 
         combined_text = "\n\n".join(full_text_parts).strip()
         return combined_text, metadata
+
+    @classmethod
+    def extract_text_from_docx_bytes(cls, docx_bytes: bytes) -> Tuple[str, Dict[str, Any]]:
+        """
+        Extracts paragraphs, table rows, and structured text from a DOCX Word document.
+        """
+        paragraphs: List[str] = []
+        metadata = {"pageCount": 1, "ocrEngine": "python_docx"}
+
+        try:
+            import docx
+            doc = docx.Document(io.BytesIO(docx_bytes))
+            for p in doc.paragraphs:
+                p_text = p.text.strip()
+                if p_text:
+                    paragraphs.append(p_text)
+
+            for table in doc.tables:
+                for row in table.rows:
+                    row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                    if row_cells:
+                        paragraphs.append(" | ".join(row_cells))
+
+            text = "\n".join(paragraphs).strip()
+            return text, metadata
+        except Exception as exc:
+            logger.warning(f"python-docx extraction failed, trying zipfile XML parser: {exc}")
+            import zipfile
+            import xml.etree.ElementTree as ET
+            try:
+                with zipfile.ZipFile(io.BytesIO(docx_bytes)) as z:
+                    xml_content = z.read("word/document.xml")
+                tree = ET.fromstring(xml_content)
+                ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+                for p in tree.iterfind(".//w:p", ns):
+                    texts = [node.text for node in p.iterfind(".//w:t", ns) if node.text]
+                    if texts:
+                        paragraphs.append("".join(texts).strip())
+                text = "\n".join(paragraphs).strip()
+                return text, metadata
+            except Exception as e:
+                logger.error(f"DOCX XML extraction also failed: {e}")
+                return "", {"pageCount": 1, "ocrEngine": "python_docx", "error": str(e)}

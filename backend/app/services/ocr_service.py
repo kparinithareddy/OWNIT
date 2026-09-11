@@ -286,7 +286,10 @@ class OCRService:
         warnings: List[str] = []
 
         try:
-            if ext_lower == ".pdf":
+            if ext_lower in [".docx", ".doc"]:
+                raw_text, ocr_meta = OCREngine.extract_text_from_docx_bytes(file_bytes)
+                page_count = ocr_meta.get("pageCount", 1)
+            elif ext_lower == ".pdf":
                 raw_text, ocr_meta = OCREngine.extract_text_from_pdf_bytes(file_bytes)
                 page_count = ocr_meta.get("pageCount", 1)
             else:
@@ -294,7 +297,7 @@ class OCRService:
         except Exception as exc:
             logger.error(f"OCR extraction encountered error: {exc}")
             raw_text = ""
-            warnings.append("OCR could not cleanly parse this image. Please review and input product details manually.")
+            warnings.append("Could not cleanly parse this document. Please review and input product details manually.")
 
         if not raw_text.strip():
             raw_text = "[No readable text detected from receipt image/PDF. Please verify the image is clear and well-lit.]"

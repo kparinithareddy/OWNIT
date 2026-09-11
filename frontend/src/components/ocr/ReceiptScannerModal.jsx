@@ -325,7 +325,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                   <Upload size={36} />
                 </div>
                 <h4>Upload Receipt or Invoice</h4>
-                <p>Supports photos (JPG, PNG, WEBP) and multi-page PDF documents</p>
+                <p>Supports photos (JPG, PNG, WEBP), multi-page PDF, and Word documents (.docx)</p>
                 <span className="file-size-hint">Extracts multiple products in a single bill • 100% offline & secure</span>
 
                 <div className="receipt-action-buttons" onClick={(e) => e.stopPropagation()}>
@@ -350,7 +350,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
+                accept="image/jpeg,image/png,image/webp,application/pdf,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
                 style={{ display: 'none' }}
                 onChange={handleFileSelect}
               />

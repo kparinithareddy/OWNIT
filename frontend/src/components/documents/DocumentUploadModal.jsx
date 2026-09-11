@@ -53,9 +53,9 @@ export default function DocumentUploadModal({
 
     // Check extension
     const ext = '.' + file.name.split('.').pop().toLowerCase();
-    const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif'];
+    const allowed = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.docx', '.doc'];
     if (!allowed.includes(ext)) {
-      setErrorMessage(`Invalid file format '${ext}'. Only PDF and image files (JPG, PNG, WEBP) are allowed.`);
+      setErrorMessage(`Invalid file format '${ext}'. Allowed formats: PDF, Word (.docx), and images (JPG, PNG, WEBP).`);
       setSelectedFile(null);
       return;
     }
@@ -159,7 +159,7 @@ export default function DocumentUploadModal({
           {/* File Picker Zone */}
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-main)', marginBottom: '6px' }}>
-              Choose Document File (PDF, PNG, JPG, WEBP - Max 10MB) <span style={{ color: 'var(--danger)' }}>*</span>
+              Choose Document File (PDF, DOCX, PNG, JPG, WEBP - Max 10MB) <span style={{ color: 'var(--danger)' }}>*</span>
             </label>
             <div
               style={{
@@ -176,7 +176,7 @@ export default function DocumentUploadModal({
               <input
                 id="doc-file-input"
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp,.gif"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,image/*"
                 onChange={handleFileChange}
                 style={{ display: 'none' }}
                 disabled={isUploading}

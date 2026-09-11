@@ -38,6 +38,10 @@ def validate_magic_bytes(file_bytes: bytes, ext: str) -> bool:
         return file_bytes.startswith(b"RIFF") and b"WEBP" in file_bytes[:16]
     elif ext == ".gif":
         return file_bytes.startswith(b"GIF87a") or file_bytes.startswith(b"GIF89a")
+    elif ext == ".docx":
+        return file_bytes.startswith(b"PK\x03\x04")
+    elif ext == ".doc":
+        return file_bytes.startswith(b"\xd0\xcf\x11\xe0") or file_bytes.startswith(b"PK\x03\x04")
     return True
 
 
