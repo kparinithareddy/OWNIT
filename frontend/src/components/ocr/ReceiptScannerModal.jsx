@@ -24,6 +24,8 @@ import {
   Calendar,
   DollarSign,
   Store,
+  MapPin,
+  CreditCard,
   Hash,
   Tag
 } from 'lucide-react';
@@ -119,8 +121,12 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
             category: item.category || 'Other',
             purchaseDate: item.purchaseDate || response.invoiceDate || new Date().toISOString().split('T')[0],
             price: item.price !== null && item.price !== undefined ? item.price : '',
+            taxAmount: item.taxAmount !== null && item.taxAmount !== undefined ? item.taxAmount : (response.taxAmount || ''),
+            totalPrice: item.totalPrice !== null && item.totalPrice !== undefined ? item.totalPrice : (response.totalAmount || ''),
             quantity: item.quantity || 1,
             seller: item.seller || response.seller || '',
+            sellerAddress: item.sellerAddress || response.sellerAddress || '',
+            paymentMethod: item.paymentMethod || response.paymentMethod || '',
             serialNumber: item.serialNumber || '',
             imei: item.imei || '',
             notes: item.warrantyInfo ? `Warranty: ${item.warrantyInfo}` : ''
@@ -134,9 +140,13 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
               model: '',
               category: 'Other',
               purchaseDate: response.invoiceDate || new Date().toISOString().split('T')[0],
-              price: response.totalAmount || '',
+              price: response.subtotal !== null && response.subtotal !== undefined ? response.subtotal : (response.totalAmount || ''),
+              taxAmount: response.taxAmount || '',
+              totalPrice: response.totalAmount || '',
               quantity: 1,
               seller: response.seller || '',
+              sellerAddress: response.sellerAddress || '',
+              paymentMethod: response.paymentMethod || '',
               serialNumber: '',
               imei: '',
               notes: '',
@@ -180,10 +190,19 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
   const handleFieldChange = (index, field, value) => {
     setCandidateItems((prev) => {
       const updated = [...prev];
-      updated[index] = {
-        ...updated[index],
-        [field]: value
-      };
+      const item = { ...updated[index], [field]: value };
+
+      // Automatically recalculate totalPrice when base price or tax amount is edited
+      if (field === 'price' || field === 'taxAmount' || field === 'quantity') {
+        const p = parseFloat(field === 'price' ? value : item.price) || 0;
+        const q = parseInt(field === 'quantity' ? value : item.quantity, 10) || 1;
+        const t = parseFloat(field === 'taxAmount' ? value : item.taxAmount) || 0;
+        if (p > 0) {
+          item.totalPrice = Math.round(((p * q) + t) * 100) / 100;
+        }
+      }
+
+      updated[index] = item;
       return updated;
     });
   };
@@ -197,9 +216,13 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
       model: '',
       category: 'Other',
       purchaseDate: scanResult?.invoiceDate || new Date().toISOString().split('T')[0],
-      price: '',
+      price: scanResult?.subtotal || '',
+      taxAmount: scanResult?.taxAmount || '',
+      totalPrice: scanResult?.totalAmount || '',
       quantity: 1,
       seller: scanResult?.seller || '',
+      sellerAddress: scanResult?.sellerAddress || '',
+      paymentMethod: scanResult?.paymentMethod || '',
       serialNumber: '',
       imei: '',
       notes: '',
@@ -255,8 +278,12 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
         category: it.category || 'Other',
         purchaseDate: it.purchaseDate || null,
         price: it.price !== '' && it.price !== null ? parseFloat(it.price) : null,
+        taxAmount: it.taxAmount !== '' && it.taxAmount !== null ? parseFloat(it.taxAmount) : null,
+        totalPrice: it.totalPrice !== '' && it.totalPrice !== null ? parseFloat(it.totalPrice) : null,
         quantity: parseInt(it.quantity, 10) || 1,
         seller: it.seller ? it.seller.trim() : null,
+        sellerAddress: it.sellerAddress ? it.sellerAddress.trim() : null,
+        paymentMethod: it.paymentMethod ? it.paymentMethod.trim() : null,
         serialNumber: it.serialNumber ? it.serialNumber.trim() : null,
         imei: it.imei ? it.imei.trim() : null,
         notes: it.notes ? it.notes.trim() : null,
@@ -522,8 +549,20 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                           )}
                           {item.price !== '' && item.price !== null && (
                             <div className="meta-pill price-pill">
-                              <span className="meta-k">Price:</span>
+                              <span className="meta-k">Base Price:</span>
                               <span className="meta-v">₹{Number(item.price).toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                          {item.taxAmount !== '' && item.taxAmount !== null && (
+                            <div className="meta-pill" style={{ backgroundColor: '#fef3c7', borderColor: '#fde68a', color: '#92400e' }}>
+                              <span className="meta-k" style={{ color: '#b45309', fontWeight: 600 }}>GST / Tax:</span>
+                              <span className="meta-v" style={{ fontWeight: 600 }}>₹{Number(item.taxAmount).toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                          {item.totalPrice !== '' && item.totalPrice !== null && (
+                            <div className="meta-pill" style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
+                              <span className="meta-k" style={{ color: '#047857', fontWeight: 700 }}>Total (incl. GST):</span>
+                              <span className="meta-v" style={{ fontWeight: 700 }}>₹{Number(item.totalPrice).toLocaleString('en-IN')}</span>
                             </div>
                           )}
                           {item.quantity > 1 && (
@@ -542,6 +581,18 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                             <div className="meta-pill">
                               <span className="meta-k">Seller:</span>
                               <span className="meta-v">{item.seller}</span>
+                            </div>
+                          )}
+                          {item.sellerAddress && (
+                            <div className="meta-pill" title={item.sellerAddress}>
+                              <span className="meta-k">📍 Address:</span>
+                              <span className="meta-v">{item.sellerAddress.length > 35 ? `${item.sellerAddress.substring(0, 35)}...` : item.sellerAddress}</span>
+                            </div>
+                          )}
+                          {item.paymentMethod && (
+                            <div className="meta-pill" style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af' }}>
+                              <span className="meta-k" style={{ color: '#1d4ed8', fontWeight: 600 }}>💳 Paid via:</span>
+                              <span className="meta-v" style={{ fontWeight: 600 }}>{item.paymentMethod}</span>
                             </div>
                           )}
                           {item.serialNumber && (
@@ -602,7 +653,7 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                                 onChange={(e) => handleFieldChange(idx, 'category', e.target.value)}
                               >
                                 {PRODUCT_CATEGORIES.map((cat) => (
-                                  <option key={cat} value={cat}>
+                                   <option key={cat} value={cat}>
                                     {cat}
                                   </option>
                                 ))}
@@ -619,13 +670,35 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                             </div>
 
                             <div className="form-col">
-                              <label className="field-label">Price (INR ₹)</label>
+                              <label className="field-label">Base Price (excl. Tax) (INR ₹)</label>
                               <Input
                                 type="number"
                                 step="0.01"
-                                placeholder="e.g. 54990"
+                                placeholder="e.g. 52990"
                                 value={item.price}
                                 onChange={(e) => handleFieldChange(idx, 'price', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">GST / Tax Amount (INR ₹)</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="e.g. 9538.20"
+                                value={item.taxAmount || ''}
+                                onChange={(e) => handleFieldChange(idx, 'taxAmount', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Total Price (incl. GST) (INR ₹)</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="e.g. 62528.20"
+                                value={item.totalPrice || ''}
+                                onChange={(e) => handleFieldChange(idx, 'totalPrice', e.target.value)}
                               />
                             </div>
 
@@ -645,6 +718,24 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                                 placeholder="e.g. Reliance Digital, Amazon"
                                 value={item.seller || ''}
                                 onChange={(e) => handleFieldChange(idx, 'seller', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Store / Company Address</label>
+                              <Input
+                                placeholder="e.g. Prestige Tech Park, Bengaluru - 560037"
+                                value={item.sellerAddress || ''}
+                                onChange={(e) => handleFieldChange(idx, 'sellerAddress', e.target.value)}
+                              />
+                            </div>
+
+                            <div className="form-col">
+                              <label className="field-label">Payment Method</label>
+                              <Input
+                                placeholder="e.g. UPI (Google Pay), Credit Card, Cash"
+                                value={item.paymentMethod || ''}
+                                onChange={(e) => handleFieldChange(idx, 'paymentMethod', e.target.value)}
                               />
                             </div>
 

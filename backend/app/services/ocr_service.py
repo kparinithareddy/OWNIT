@@ -47,34 +47,171 @@ class ReceiptParser:
         return text.strip()
 
     @staticmethod
-    def extract_seller(text: str) -> Optional[str]:
-        """Detects seller/store name from known list or regex patterns."""
-        # 1. Match known retailers
+    def clean_company_name(name: Optional[str]) -> Optional[str]:
+        """Cleans OCR noise and trailing labels from detected company or store name."""
+        if not name:
+            return None
+        n = name.strip()
+        n = re.sub(r"\s*(?:Purchase\s*Date|Invoice\s*Date|Order\s*Date|Date|Customer\s*Care|Email|Website|Phone|Tel\b|CIN|GSTIN|TAX\s*INVOICE|Invoice|Original|Bill\s*To|Branch|Store\s*:).*", "", n, flags=re.IGNORECASE)
+        n = re.sub(r"[_~–\-\|\"\'\<\>]+", " ", n).strip()
+        n = re.sub(r"\s+", " ", n)
+        return n if len(n) > 1 else None
+
+    @staticmethod
+    def clean_address(addr: Optional[str]) -> Optional[str]:
+        """Cleans and standardizes company or store address."""
+        if not addr:
+            return None
+        a = addr.strip()
+        a = re.sub(r"\s*(?:GSTIN|CIN|Email|Telephone|Phone|Tel\b|Mob|Bill\s*To|TAX\s*INVOICE|Original|Invoice\s*No|Receipt\s*Voucher|Customer\s*Signature|Authorized\s*Signatory|For\s+[A-Za-z]+).*", "", a, flags=re.IGNORECASE)
+        a = re.sub(r"[^\x20-\x7E]+", " ", a)
+        a = re.sub(r"[_~–\-\|\"\'\<\>]+", " ", a).strip()
+        a = re.sub(r"\b(?:ARD|C\s*T|SAMPLE)\b", " ", a, flags=re.IGNORECASE)
+        a = re.sub(r"\s*,\s*", ", ", a)
+        a = re.sub(r"(?:,\s*)+,", ", ", a)
+        a = re.sub(r"\s+", " ", a)
+        a = re.sub(r"^[,\s–\-_|]+|[,\s–\-_|]+$", "", a)
+        return a if len(a) > 5 else None
+
+    @classmethod
+    def normalize_payment_mode(cls, raw: Optional[str]) -> Optional[str]:
+        """Normalizes extracted raw payment string into standardized display mode."""
+        if not raw:
+            return None
+        r = raw.strip()
+        if re.search(r"Google\s*Pay|GPay", r, re.IGNORECASE):
+            return "UPI (Google Pay)"
+        if re.search(r"PhonePe", r, re.IGNORECASE):
+            return "UPI (PhonePe)"
+        if re.search(r"Paytm", r, re.IGNORECASE):
+            return "UPI (Paytm)"
+        if re.search(r"UP[!I]|VPA|BHIM", r, re.IGNORECASE):
+            return "UPI"
+        if re.search(r"Credit\s*Card|CedtCard|CreditCard", r, re.IGNORECASE):
+            return "Credit Card"
+        if re.search(r"Debit\s*Card|DebitCard", r, re.IGNORECASE):
+            return "Debit Card"
+        if re.search(r"Net\s*Banking|Internet\s*Banking", r, re.IGNORECASE):
+            return "Net Banking"
+        if re.search(r"Online", r, re.IGNORECASE):
+            return "Online Transaction"
+        if re.search(r"Cash", r, re.IGNORECASE):
+            return "Cash"
+        if re.search(r"EMI", r, re.IGNORECASE):
+            return "EMI"
+        if re.search(r"Card", r, re.IGNORECASE):
+            return "Card"
+        return r[:50].strip()
+
+    @classmethod
+    def extract_payment_method(cls, text: str) -> Optional[str]:
+        """Extracts and normalizes payment method (Credit Card, Debit Card, UPI, etc.) from invoice."""
+        # 1. Explicit labeled payment patterns
+        patterns = [
+            r"(?:Payment\s*(?:Mode|Method|Type|Detals|Details)|Paid\s*By|Mode\s*of\s*Payment|Transaction\s*Type|Pay\s*Mode)\s*[:\-–]?\s*([^\n\r]+)",
+        ]
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                raw = m.group(1).strip()
+                raw = re.sub(r"\s*(?:Transaction\s*ID|Bank|Auth|Date|Time|Ref|Amount|Total|GSTIN|Invoice|Customer).*", "", raw, flags=re.IGNORECASE).strip()
+                norm = cls.normalize_payment_mode(raw)
+                if norm:
+                    return norm
+
+        # 2. General invoice heuristic search
+        if re.search(r"\b(?:UP[!I]|Google\s*Pay|GPay|PhonePe|Paytm)\b", text, re.IGNORECASE):
+            if re.search(r"Google\s*Pay|GPay", text, re.IGNORECASE):
+                return "UPI (Google Pay)"
+            if re.search(r"PhonePe", text, re.IGNORECASE):
+                return "UPI (PhonePe)"
+            if re.search(r"Paytm", text, re.IGNORECASE):
+                return "UPI (Paytm)"
+            return "UPI"
+        if re.search(r"\b(?:Credit\s*Card|CedtCard|CreditCard)\b", text, re.IGNORECASE):
+            return "Credit Card"
+        if re.search(r"\b(?:Debit\s*Card|DebitCard)\b", text, re.IGNORECASE):
+            return "Debit Card"
+        if re.search(r"\b(?:Net\s*Banking|Internet\s*Banking)\b", text, re.IGNORECASE):
+            return "Net Banking"
+        if re.search(r"\b(?:Card\s*[\d,]+|Card\s*Payment|Paid\s*via\s*Card)\b", text, re.IGNORECASE):
+            return "Card"
+        if re.search(r"\b(?:Cash\s*on\s*Delivery|COD)\b", text, re.IGNORECASE):
+            return "Cash on Delivery"
+        if re.search(r"\bCash\b", text, re.IGNORECASE):
+            return "Cash"
+        if re.search(r"\b(?:Online\s*Transaction|Online\s*Payment|NEFT|RTGS|IMPS)\b", text, re.IGNORECASE):
+            return "Online Transaction"
+        return None
+
+    @classmethod
+    def extract_seller_and_address(cls, text: str) -> Tuple[Optional[str], Optional[str]]:
+        """Detects store/merchant name and branch/company address."""
+        seller = None
+        address = None
+
+        # 1. Match dealer / store stamp block
+        stamp_match = re.search(r"Authorised\s*Dealer\s*Stamp|Dealer\s*Stamp", text, re.IGNORECASE)
+        if stamp_match:
+            after_stamp = text[stamp_match.end():]
+            lines = [l.strip() for l in after_stamp.split("\n") if l.strip()]
+            valid_lines = []
+            for l in lines:
+                l_clean = re.sub(r"(?:Customer\s*Signature|Signatory|TECHNOLOGY|DEMO\s*DOCUMENT).*", "", l, flags=re.IGNORECASE).strip()
+                if l_clean and len(l_clean) > 2 and not re.search(r"^(?:Signature|Stamp|Sign|Date)$", l_clean, re.IGNORECASE):
+                    valid_lines.append(l_clean)
+            if valid_lines:
+                seller = valid_lines[0]
+                if len(valid_lines) > 1:
+                    address = ", ".join(valid_lines[1:3])
+
+        # 2. Match Store: / Branch: / Sold By: headers
+        store_match = re.search(r"(?:Store|Branch|Sold\s*By|Billed\s*By)\s*[:\-]\s*([^\n\r]+)(?:\n+([^\n\r]+))?", text, re.IGNORECASE)
+        if store_match:
+            s_cand = cls.clean_company_name(store_match.group(1))
+            a_cand = store_match.group(2).strip() if store_match.group(2) else ""
+            if not seller or not re.search(r"Electronics|Pvt|Ltd|Shop|Store", seller, re.IGNORECASE):
+                seller = s_cand
+            if a_cand and not re.search(r"Invoice|Bill|Date|Product|GSTIN", a_cand, re.IGNORECASE):
+                if not address:
+                    address = a_cand
+
+        # 3. Known retailers check & normalization
         for retailer in KNOWN_RETAILERS:
             if re.search(r"\b" + re.escape(retailer) + r"\b", text, re.IGNORECASE):
-                return retailer
+                if seller and retailer.lower() in seller.lower() and len(seller) > len(retailer):
+                    extra = re.sub(re.escape(retailer), "", seller, flags=re.IGNORECASE).strip(" ,-–")
+                    if extra and not address:
+                        address = extra
+                seller = retailer
+                break
 
-        # 2. Match Seller: / Sold By: / Store: headers
-        seller_patterns = [
-            r"(?:Sold\s*By|Seller|Merchant|Store|Retailer|Billed\s*By|Vendor)\s*[:\-]?\s*([A-Za-z0-9\s.,&'\-]{3,40})",
-            r"(?:Tax\s*Invoice\s*-\s*)([A-Za-z0-9\s.,&'\-]{3,40})",
-        ]
-        for pattern in seller_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                candidate = match.group(1).strip()
-                candidate = re.sub(r"\s+(?:Purchase\s*Date|Invoice\s*Date|Order\s*Date|Date|GSTIN|Phone|Email|Bill|Order).*", "", candidate, flags=re.IGNORECASE).strip()
-                if candidate.lower() not in ("cashier", "customer", "invoice", "details", "original") and len(candidate) > 2:
-                    return candidate.split("\n")[0].strip()
+        # 4. Top header company & address
+        if not seller or not address:
+            lines = [l.strip() for l in text.split("\n") if l.strip() and not l.startswith("---")]
+            for idx, l in enumerate(lines[:6]):
+                if re.search(r"(?:Pvt\.?\s*Ltd\.?|Private\s*Limited|Retail\s*Shop|Smart\s*Cafe|Electronics|Digital|Sales|Corporation|Enterprises)", l, re.IGNORECASE):
+                    if not seller:
+                        seller = l
+                    addr_parts = []
+                    for sub_l in lines[idx+1:idx+5]:
+                        if re.search(r"(?:Road|Street|Marg|Layout|Nagar|Floor|Shop|Compound|Complex|Park|Bengaluru|Mumbai|Delhi|Hyderabad|Chennai|Kolkata|Pune|\b\d{6}\b|Karnataka|Maharashtra|Telangana)", sub_l, re.IGNORECASE):
+                            sub_clean = re.sub(r"\s*(?:TAX\s*INVOICE|Warranty\s*Card|GSTIN|CIN|Bill\s*To|Invoice\s*No|Original|Customer|Phone|Email).*", "", sub_l, flags=re.IGNORECASE).strip()
+                            if sub_clean and len(sub_clean) > 3:
+                                addr_parts.append(sub_clean)
+                    if addr_parts and not address:
+                        address = ", ".join(addr_parts)
+                    break
 
-        # 3. Fallback: inspect top lines of receipt
-        lines = [line.strip() for line in text.split("\n") if line.strip() and not line.startswith("---")]
-        if lines:
-            first_line = lines[0]
-            if len(first_line) > 2 and len(first_line) < 40 and not re.search(r"(tax|invoice|bill|receipt|gst|date)", first_line, re.IGNORECASE):
-                return first_line
+        clean_s = cls.clean_company_name(seller)
+        clean_a = cls.clean_address(address)
+        return clean_s, clean_a
 
-        return None
+    @classmethod
+    def extract_seller(cls, text: str) -> Optional[str]:
+        """Detects seller/store name."""
+        s, _ = cls.extract_seller_and_address(text)
+        return s
 
     @staticmethod
     def extract_invoice_number(text: str) -> Optional[str]:
@@ -92,65 +229,224 @@ class ReceiptParser:
         return None
 
     @staticmethod
-    def extract_dates(text: str) -> List[str]:
-        """Finds and standardizes dates from text into YYYY-MM-DD format."""
+    def parse_single_date(text: str) -> Optional[str]:
+        """Parses a date string in various formats (ISO, Word, DMY, MDY)."""
+        if not text:
+            return None
+
+        # Format A: ISO YYYY-MM-DD (e.g. 2025-06-15, 2026/09/11)
+        iso = re.search(r"\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b", text)
+        if iso:
+            y, m, d = int(iso.group(1)), int(iso.group(2)), int(iso.group(3))
+            try:
+                return datetime(y, m, d).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format B: Word format Day Month Year (e.g. 12 Aug 2025, 11 Sep 2026, 12-Aug-2025, 1st Sep 2025)
+        word_dmy = re.search(r"\b(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?[\s\-_/]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-_/]+(20\d{2}|\d{2})\b", text, re.IGNORECASE)
+        if word_dmy:
+            d = int(word_dmy.group(1))
+            m_str = word_dmy.group(2)[:3].title()
+            y = int(word_dmy.group(3))
+            if y < 100:
+                y += 2000
+            try:
+                return datetime.strptime(f"{d} {m_str} {y}", "%d %b %Y").strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format C: Word format Month Day Year (e.g. September 11, 2026 or Aug 12 2025)
+        word_mdy = re.search(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-_/]+(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?[\s\-_/,]+(20\d{2}|\d{2})\b", text, re.IGNORECASE)
+        if word_mdy:
+            m_str = word_mdy.group(1)[:3].title()
+            d = int(word_mdy.group(2))
+            y = int(word_mdy.group(3))
+            if y < 100:
+                y += 2000
+            try:
+                return datetime.strptime(f"{d} {m_str} {y}", "%d %b %Y").strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format D: DD/MM/YYYY or DD-MM-YYYY (e.g. 15/06/2025, 15-06-2025, 15.06.2025)
+        dmy = re.search(r"\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2}|\d{2})\b", text)
+        if dmy:
+            p1, p2, y = int(dmy.group(1)), int(dmy.group(2)), int(dmy.group(3))
+            if y < 100:
+                y += 2000
+            try:
+                return datetime(y, p2, p1).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format E: Compact DDMMYYYY (e.g. 20022026 -> 2026-02-20)
+        compact = re.search(r"\b(0[1-9]|[12]\d|3[01])(0[1-9]|1[0-2])(20\d{2})\b", text)
+        if compact:
+            d, m, y = int(compact.group(1)), int(compact.group(2)), int(compact.group(3))
+            try:
+                return datetime(y, m, d).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        return None
+
+    @classmethod
+    def extract_dates(cls, text: str) -> List[str]:
+        """Finds and standardizes dates from text into YYYY-MM-DD format, prioritizing explicit labels."""
         found_dates: List[str] = []
         
-        # 1. ISO format: YYYY-MM-DD
-        iso_matches = re.findall(r"\b(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2})\b", text)
-        for m in iso_matches:
-            try:
-                parts = re.split(r"[-/.]", m)
-                dt = datetime(int(parts[0]), int(parts[1]), int(parts[2]))
-                found_dates.append(dt.strftime("%Y-%m-%d"))
-            except Exception:
-                pass
+        # 1. First priority: Explicit labeled fields (Purchase Date, Invoice Date, Bill Date, Date)
+        label_patterns = [
+            r"(?:Purchase\s*Date|Invoice\s*Date|Bill\s*Date|Date\s*of\s*Purchase|Date\s*of\s*Invoice|Inv\s*Date|Order\s*Date|Dated|Date)[^\w\n\r]*([^\n\r,;]+)",
+            r"(?:Purchased\s*on|Billed\s*on|Ordered\s*on)[^\w\n\r]*([^\n\r,;]+)"
+        ]
+        for lp in label_patterns:
+            matches = re.finditer(lp, text, re.IGNORECASE)
+            for m in matches:
+                cand = m.group(1).strip()
+                # Skip if matched line is an expiry date
+                if re.search(r"(?:expiry|valid|till|return)", cand, re.IGNORECASE):
+                    continue
+                dt = cls.parse_single_date(cand)
+                if dt and dt not in found_dates:
+                    found_dates.append(dt)
 
-        # 2. Standard format: DD/MM/YYYY or DD-MM-YYYY
-        std_matches = re.findall(r"\b(\d{1,2}[-/.]\d{1,2}[-/.](?:20)?\d{2})\b", text)
-        for m in std_matches:
-            try:
-                parts = re.split(r"[-/.]", m)
-                d, mth, y = int(parts[0]), int(parts[1]), int(parts[2])
-                if y < 100:
-                    y += 2000
-                if mth <= 12 and d <= 31:
-                    dt = datetime(y, mth, d)
-                    found_dates.append(dt.strftime("%Y-%m-%d"))
-            except Exception:
-                pass
+        # 2. Second priority: scan lines while filtering out expiry/warranty terms
+        if not found_dates:
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            for line in lines:
+                if re.search(r"(?:expiry|valid|till|terms|warranty\s*card|guarantee)", line, re.IGNORECASE):
+                    continue
+                dt = cls.parse_single_date(line)
+                if dt and dt not in found_dates:
+                    found_dates.append(dt)
 
-        # 3. Word format: 15 Aug 2024 or August 15, 2024
-        word_matches = re.findall(r"\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:20)?\d{2})\b", text, re.IGNORECASE)
-        for m in word_matches:
-            for fmt in ("%d %b %Y", "%d %B %Y", "%d %b %y"):
-                try:
-                    dt = datetime.strptime(m.strip(), fmt)
-                    found_dates.append(dt.strftime("%Y-%m-%d"))
-                    break
-                except Exception:
-                    pass
-
-        return list(dict.fromkeys(found_dates))
+        return found_dates
 
     @staticmethod
-    def extract_total_amount(text: str) -> Optional[float]:
-        """Extracts the grand total or net amount from the receipt."""
-        total_patterns = [
-            r"(?:Grand\s*Total|Total\s*Amount|Net\s*Amount|Total\s*Payable|Amount\s*Paid|Total)\s*[:\-]?\s*[^0-9\r\n]*\s*([\d,]+(?:\.\d{2})?)",
-            r"(?:₹|INR|Rs\.?|\$)\s*([\d,]+\.\d{2})\s*(?:Total|Net)?",
+    def extract_subtotal(text: str) -> Optional[float]:
+        """Extracts subtotal or taxable amount before taxes from receipt."""
+        clean_for_price = re.sub(r"\[[\d\.]+\]", "", text)
+        patterns = [
+            r"(?:Subtotal|Sub\s*Total|Taxable\s*(?:Amount|Value)|Base\s*Price|Item\s*Total|Net\s*(?:Amount|Price))\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)",
+            r"(?:Subtotal|Taxable\s*Amount)\s*[:\-–]?\s*([0-9,]+(?:\.\d{2})?)"
         ]
-        for pattern in total_patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                amt_str = match.group(1).replace(",", "").strip()
+        for pattern in patterns:
+            match = re.search(pattern, clean_for_price, re.IGNORECASE)
+            if match:
                 try:
-                    val = float(amt_str)
+                    val = float(match.group(1).replace(",", ""))
                     if 1.0 <= val <= 5000000.0:
                         return val
                 except ValueError:
                     pass
         return None
+
+    @staticmethod
+    def extract_tax_amount(text: str) -> Optional[float]:
+        """Extracts GST/Tax amount or computes the sum of CGST + SGST / IGST breakdown."""
+        clean_for_price = re.sub(r"\[[\d\.]+\]", "", text)
+
+        # 1. Direct total tax / GST amount label
+        tot_tax_patterns = [
+            r"(?:Total\s*Tax\s*(?:Amount)?|Tax\s*Amount|GST\s*Amount|Total\s*GST)\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)",
+        ]
+        for p in tot_tax_patterns:
+            m = re.search(p, clean_for_price, re.IGNORECASE)
+            if m:
+                try:
+                    v = float(m.group(1).replace(",", ""))
+                    if 10.0 <= v <= 1000000.0:
+                        return v
+                except ValueError:
+                    pass
+
+        # 2. Sum CGST + SGST or IGST or GST breakdown
+        cgst_m = re.search(r"(?:CGST|GST)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean_for_price, re.IGNORECASE)
+        sgst_m = re.search(r"(?:SGST|UTGST)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean_for_price, re.IGNORECASE)
+        igst_m = re.search(r"(?:IGST)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean_for_price, re.IGNORECASE)
+
+        tax_sum = 0.0
+        found = False
+        if cgst_m:
+            try:
+                cg_val = float(cgst_m.group(1).replace(",", ""))
+                if cg_val >= 10.0:
+                    tax_sum += cg_val
+                    found = True
+            except ValueError:
+                pass
+        if sgst_m:
+            try:
+                sg_val = float(sgst_m.group(1).replace(",", ""))
+                if sg_val >= 10.0:
+                    tax_sum += sg_val
+                    found = True
+            except ValueError:
+                pass
+        if igst_m:
+            try:
+                ig_val = float(igst_m.group(1).replace(",", ""))
+                if ig_val >= 10.0:
+                    tax_sum += ig_val
+                    found = True
+            except ValueError:
+                pass
+
+        if found and tax_sum >= 10.0:
+            return round(tax_sum, 2)
+
+        # 3. Fallback single GST/VAT label
+        single_gst = re.search(r"(?:GST|VAT|Tax)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean_for_price, re.IGNORECASE)
+        if single_gst:
+            try:
+                v = float(single_gst.group(1).replace(",", ""))
+                if 10.0 <= v <= 1000000.0:
+                    return v
+            except ValueError:
+                pass
+
+        return None
+
+    @staticmethod
+    def extract_total_amount(text: str) -> Optional[float]:
+        """Extracts the grand total or net amount from the receipt, filtering table artifacts."""
+        clean_for_price = re.sub(r"\[[\d\.]+\]", "", text)
+        
+        # 1. Search explicit total patterns
+        total_patterns = [
+            r"(?:Grand\s*Total|Total\s*Amount|Net\s*Amount|Total\s*Payable|Amount\s*Paid)\s*[:\-–]?\s*[^0-9\r\n]*\s*([\d,]+(?:\.\d{2})?)",
+            r"(?:Total|Net|Amount)\s*[:\-–]\s*[^0-9\r\n]*\s*([\d,]+(?:\.\d{2})?)",
+            r"(?:₹|INR|Rs\.?|\$)\s*([\d,]+(?:\.\d{2})?)\s*(?:Total|Net|Grand|Only)?",
+        ]
+        valid_totals = []
+        for pattern in total_patterns:
+            matches = re.finditer(pattern, clean_for_price, re.IGNORECASE)
+            for match in matches:
+                amt_str = match.group(1).replace(",", "").strip()
+                try:
+                    val = float(amt_str)
+                    if 100.0 <= val <= 5000000.0:
+                        valid_totals.append(val)
+                except ValueError:
+                    pass
+
+        if valid_totals:
+            return max(valid_totals)
+
+        # 2. Search general prices in document
+        all_prices = re.findall(r"(?:₹|INR|Rs\.?|\$)?\s*([\d,]+\.\d{2})", clean_for_price)
+        valid_prices = []
+        for p in all_prices:
+            try:
+                val = float(p.replace(",", ""))
+                if 100.0 <= val <= 5000000.0:
+                    valid_prices.append(val)
+            except Exception:
+                pass
+
+        return max(valid_prices) if valid_prices else None
 
     @classmethod
     def infer_category(cls, item_text: str) -> str:
@@ -175,11 +471,15 @@ class ReceiptParser:
         serial_number = None
         imei = None
 
-        sn_match = re.search(r"(?:Serial\s*(?:No|Num|Number|#)?|S/N|SN)\s*[:\-]?\s*([A-Za-z0-9]{6,25})", text, re.IGNORECASE)
+        sn_match = re.search(r"(?:Serial(?:/IMEI)?\s*(?:No|Num|Number|#)?|S/N|SN)[^\w\n\r]*([A-Za-z0-9\-_ ]{6,30})", text, re.IGNORECASE)
         if sn_match:
-            serial_number = sn_match.group(1).strip()
+            cand_sn = sn_match.group(1).strip()
+            cand_sn = re.sub(r"\s+(?:year|warranty|months?|date).*", "", cand_sn, flags=re.IGNORECASE).strip()
+            cand_sn = re.sub(r"\s+", "", cand_sn)
+            if len(cand_sn) >= 6:
+                serial_number = cand_sn
 
-        imei_match = re.search(r"(?:IMEI\s*(?:1|2|No|#)?)\s*[:\-]?\s*(\d{15})", text, re.IGNORECASE)
+        imei_match = re.search(r"(?:IMEI\s*(?:1|2|No|#)?)[^\w\n\r]*(\d{14,16})", text, re.IGNORECASE)
         if imei_match:
             imei = imei_match.group(1).strip()
 
@@ -200,18 +500,34 @@ class ReceiptParser:
         Uses modular extraction_manager supporting multi-item receipts and local AI models.
         """
         normalized = cls.normalize_text(raw_text)
-        seller = default_seller or cls.extract_seller(normalized)
+        seller, seller_address = cls.extract_seller_and_address(normalized)
+        if default_seller:
+            seller = default_seller
+        payment_method = cls.extract_payment_method(normalized)
         invoice_no = cls.extract_invoice_number(normalized)
         dates = cls.extract_dates(normalized)
-        purchase_date = dates[0] if dates else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        purchase_date = dates[0] if dates else None
+        subtotal = cls.extract_subtotal(normalized)
+        tax_amount = cls.extract_tax_amount(normalized)
         total_amount = cls.extract_total_amount(normalized)
+
+        # Financial reconciliation
+        if subtotal and tax_amount and (not total_amount or total_amount <= subtotal):
+            total_amount = round(subtotal + tax_amount, 2)
+        elif total_amount and tax_amount and not subtotal:
+            subtotal = round(total_amount - tax_amount, 2)
+
         serial_no, imei = cls.extract_serial_and_imei(normalized)
         warranty_info = cls.extract_warranty_info(normalized)
 
         meta = {
             "seller": seller,
+            "sellerAddress": seller_address,
+            "paymentMethod": payment_method,
             "invoiceNumber": invoice_no,
             "invoiceDate": purchase_date,
+            "subtotal": subtotal,
+            "taxAmount": tax_amount,
             "totalAmount": total_amount,
             "serialNumber": serial_no,
             "imei": imei,
@@ -322,8 +638,12 @@ class OCRService:
 
         return OCRScanResponse(
             seller=meta.get("seller"),
+            sellerAddress=meta.get("sellerAddress"),
+            paymentMethod=meta.get("paymentMethod"),
             invoiceNumber=meta.get("invoiceNumber"),
             invoiceDate=meta.get("invoiceDate"),
+            subtotal=meta.get("subtotal"),
+            taxAmount=meta.get("taxAmount"),
             totalAmount=meta.get("totalAmount"),
             currency="INR",
             overallConfidence=overall_conf,
@@ -354,6 +674,10 @@ class OCRService:
         # 1. Insert Products and Auto-Register Warranties if detected
         registered_warranties_count = 0
         for item in payload.items:
+            prod_price = item.price if item.price is not None else 0.0
+            prod_tax = item.taxAmount
+            prod_total = item.totalPrice or (round((prod_price * item.quantity) + (prod_tax or 0.0), 2))
+
             prod_doc = {
                 "userId": user_id,
                 "name": item.name.strip(),
@@ -361,9 +685,13 @@ class OCRService:
                 "model": item.model.strip() if item.model else None,
                 "category": item.category,
                 "purchaseDate": item.purchaseDate,
-                "price": item.price,
+                "price": prod_price,
+                "taxAmount": prod_tax,
+                "totalPrice": prod_total,
                 "quantity": item.quantity,
                 "seller": item.seller.strip() if item.seller else None,
+                "sellerAddress": item.sellerAddress.strip() if item.sellerAddress else None,
+                "paymentMethod": item.paymentMethod.strip() if item.paymentMethod else None,
                 "serialNumber": item.serialNumber.strip() if item.serialNumber else None,
                 "imei": item.imei.strip() if item.imei else None,
                 "notes": item.notes.strip() if item.notes else None,

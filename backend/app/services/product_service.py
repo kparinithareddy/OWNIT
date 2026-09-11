@@ -48,6 +48,25 @@ def format_product_doc(doc: Dict[str, Any]) -> ProductResponse:
     except (ValueError, TypeError):
         qty_val = 1
 
+    raw_tax = doc.get("taxAmount")
+    try:
+        tax_val = float(raw_tax) if raw_tax is not None else None
+    except (ValueError, TypeError):
+        tax_val = None
+
+    raw_total = doc.get("totalPrice")
+    try:
+        total_val = float(raw_total) if raw_total is not None else None
+    except (ValueError, TypeError):
+        total_val = None
+
+    # Derive total price if not explicitly stored
+    if total_val is None:
+        if tax_val is not None:
+            total_val = round((price_val * qty_val) + tax_val, 2)
+        else:
+            total_val = round(price_val * qty_val, 2)
+
     purchase_date = doc.get("purchaseDate") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     return ProductResponse(
@@ -59,8 +78,12 @@ def format_product_doc(doc: Dict[str, Any]) -> ProductResponse:
         category=str(doc.get("category") or "Other"),
         purchaseDate=str(purchase_date),
         price=price_val,
+        taxAmount=tax_val,
+        totalPrice=total_val,
         quantity=qty_val,
         seller=doc.get("seller"),
+        sellerAddress=doc.get("sellerAddress"),
+        paymentMethod=doc.get("paymentMethod"),
         serialNumber=doc.get("serialNumber"),
         imei=doc.get("imei"),
         image=doc.get("image"),
@@ -172,8 +195,12 @@ class ProductService:
             "category": data.category,
             "purchaseDate": data.purchaseDate,
             "price": data.price,
+            "taxAmount": data.taxAmount,
+            "totalPrice": data.totalPrice or (round((data.price * data.quantity) + (data.taxAmount or 0.0), 2)),
             "quantity": data.quantity,
             "seller": data.seller,
+            "sellerAddress": data.sellerAddress,
+            "paymentMethod": data.paymentMethod,
             "serialNumber": data.serialNumber,
             "imei": data.imei,
             "image": data.image,

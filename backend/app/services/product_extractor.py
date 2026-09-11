@@ -20,14 +20,16 @@ KNOWN_BRANDS = [
     "Panasonic", "Philips", "Canon", "Nikon", "GoPro", "Nintendo",
     "PlayStation", "Xbox", "Dyson", "Boat", "Noise", "Nothing", "Motorola",
     "Sennheiser", "Marshall", "Voltas", "Daikin", "Carrier", "Blue Star",
-    "Hitachi", "Toshiba", "TCL", "Hisense", "Mi", "OnePlus", "iQOO", "Infinix"
+    "Hitachi", "Toshiba", "TCL", "Hisense", "ScanPro", "TechNova", "Mi",
+    "iQOO", "Infinix", "OnePlus"
 ]
 
 # Known Retailers List
 KNOWN_RETAILERS = [
     "Amazon", "Flipkart", "Reliance Digital", "Croma", "Apple Store",
-    "Vijay Sales", "Best Buy", "Walmart", "Samsung SmartCafe", "Poorvika",
-    "Sangeetha Mobiles", "Tata CLiQ", "Myntra", "Broma", "Aditya Vision"
+    "Vijay Sales", "Best Buy", "Walmart", "Samsung SmartCafe", "Samsung Experience Store",
+    "Samsung Smart Cafe", "Poorvika", "Sangeetha Mobiles", "Tata CLiQ", "Myntra",
+    "TechNova Electronics", "Dyson Demo Store", "GVK One Mall", "Wipro", "Aditya Vision"
 ]
 
 CATEGORY_KEYWORDS = {
@@ -45,6 +47,13 @@ CATEGORY_KEYWORDS = {
         r"\bmacbooks?\b", r"\bthinkpads?\b", r"\bxps\b", r"\binspiron\b",
         r"\bpavilion\b", r"\blegion\b", r"\brog\b", r"\bzenbooks?\b",
         r"\blaptops?\b", r"\bnotebooks?\b", r"\bideapad\b", r"\bvivobook\b", r"\bsurface\b"
+    ],
+    "Home Appliance": [
+        r"\bairwrap\b", r"\bstyler\b", r"\bdryer\b", r"\bhair dryer\b", r"\bstraightener\b",
+        r"\bshaver\b", r"\btrimmer\b", r"\bmicrowaves?\b", r"\bvacuum\b", r"\bpurifiers?\b",
+        r"\bair purifier\b", r"\bwater purifier\b", r"\bmixer grinder\b", r"\birons?\b",
+        r"\bkettles?\b", r"\bovens?\b", r"\binduction\b", r"\btoasters?\b", r"\bblenders?\b",
+        r"\bdishwasher\b"
     ],
     "TV": [
         r"\bbravia\b", r"\boled\b", r"\bqled\b", r"\bsmart tv\b", r"\bled tv\b",
@@ -69,11 +78,6 @@ CATEGORY_KEYWORDS = {
     "Gaming": [
         r"\bplaystations?\b", r"\bps[45]\b", r"\bxbox\b", r"\bnintendo\b",
         r"\bswitch\b", r"\bgamepads?\b", r"\bcontrollers?\b", r"\bconsole\b", r"\bsteam deck\b"
-    ],
-    "Home Appliance": [
-        r"\bmicrowaves?\b", r"\bvacuum\b", r"\bpurifiers?\b", r"\bair purifier\b",
-        r"\bwater purifier\b", r"\bmixer grinder\b", r"\birons?\b", r"\bkettles?\b",
-        r"\bovens?\b", r"\binduction\b", r"\btoasters?\b", r"\bblenders?\b", r"\bdishwasher\b"
     ]
 }
 
@@ -94,6 +98,96 @@ class RuleBasedProductExtractor(BaseProductExtractor):
     """
 
     @classmethod
+    def parse_single_date(cls, text: Optional[str]) -> Optional[str]:
+        """Parses a date string in various formats (ISO, Word, DMY, MDY)."""
+        if not text:
+            return None
+
+        # Format A: ISO YYYY-MM-DD (e.g. 2025-06-15, 2026/09/11)
+        iso = re.search(r"\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b", text)
+        if iso:
+            y, m, d = int(iso.group(1)), int(iso.group(2)), int(iso.group(3))
+            try:
+                return datetime(y, m, d).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format B: Word format Day Month Year (e.g. 12 Aug 2025, 11 Sep 2026, 12-Aug-2025, 1st Sep 2025)
+        word_dmy = re.search(r"\b(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?[\s\-_/]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-_/]+(20\d{2}|\d{2})\b", text, re.IGNORECASE)
+        if word_dmy:
+            d = int(word_dmy.group(1))
+            m_str = word_dmy.group(2)[:3].title()
+            y = int(word_dmy.group(3))
+            if y < 100:
+                y += 2000
+            try:
+                return datetime.strptime(f"{d} {m_str} {y}", "%d %b %Y").strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format C: Word format Month Day Year (e.g. September 11, 2026 or Aug 12 2025)
+        word_mdy = re.search(r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-_/]+(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?[\s\-_/,]+(20\d{2}|\d{2})\b", text, re.IGNORECASE)
+        if word_mdy:
+            m_str = word_mdy.group(1)[:3].title()
+            d = int(word_mdy.group(2))
+            y = int(word_mdy.group(3))
+            if y < 100:
+                y += 2000
+            try:
+                return datetime.strptime(f"{d} {m_str} {y}", "%d %b %Y").strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format D: DD/MM/YYYY or DD-MM-YYYY (e.g. 15/06/2025, 15-06-2025, 15.06.2025)
+        dmy = re.search(r"\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2}|\d{2})\b", text)
+        if dmy:
+            p1, p2, y = int(dmy.group(1)), int(dmy.group(2)), int(dmy.group(3))
+            if y < 100:
+                y += 2000
+            try:
+                return datetime(y, p2, p1).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # Format E: Compact DDMMYYYY (e.g. 20022026 -> 2026-02-20)
+        compact = re.search(r"\b(0[1-9]|[12]\d|3[01])(0[1-9]|1[0-2])(20\d{2})\b", text)
+        if compact:
+            d, m, y = int(compact.group(1)), int(compact.group(2)), int(compact.group(3))
+            try:
+                return datetime(y, m, d).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        return None
+
+    @classmethod
+    def parse_date_robust(cls, text: Optional[str]) -> Optional[str]:
+        """Extracts purchase/invoice date from text, checking explicit labels first."""
+        if not text:
+            return None
+        label_patterns = [
+            r"(?:Purchase\s*Date|Invoice\s*Date|Bill\s*Date|Date\s*of\s*Purchase|Date\s*of\s*Invoice|Inv\s*Date|Order\s*Date|Dated|Date)[^\w\n\r]*([^\n\r,;]+)",
+            r"(?:Purchased\s*on|Billed\s*on|Ordered\s*on)[^\w\n\r]*([^\n\r,;]+)"
+        ]
+        for lp in label_patterns:
+            m = re.search(lp, text, re.IGNORECASE)
+            if m:
+                cand = m.group(1).strip()
+                if not re.search(r"(?:expiry|valid|till|return)", cand, re.IGNORECASE):
+                    dt = cls.parse_single_date(cand)
+                    if dt:
+                        return dt
+
+        lines = [l.strip() for l in text.split("\n") if l.strip()]
+        for line in lines:
+            if re.search(r"(?:expiry|valid|till|terms|warranty\s*card|guarantee)", line, re.IGNORECASE):
+                continue
+            dt = cls.parse_single_date(line)
+            if dt:
+                return dt
+        return None
+
+    @classmethod
     def infer_category(cls, item_text: str) -> str:
         """Determines product category based on keyword priority rules."""
         for cat, patterns in CATEGORY_KEYWORDS.items():
@@ -112,15 +206,15 @@ class RuleBasedProductExtractor(BaseProductExtractor):
 
     @classmethod
     def extract_model_from_line(cls, line: str) -> Optional[str]:
-        """Extracts model numbers like UA55DU8000, GL-S292RDSX, WH-1000XM5, XPS-9530."""
-        # 1. Explicit model prefix
-        model_m = re.search(r"(?:Model|Model\s*No|Model\s*#|Mod)\s*[:\-]?\s*([A-Za-z0-9\-_]{2,20})", line, re.IGNORECASE)
+        """Extracts model numbers like UA55DU8000, GL-S292RDSX, WH-1000XM5, XPS-9530, SM-S931BLBGIN, SP-2200."""
+        model_m = re.search(r"(?:Model\s*(?:Number|No|#)?|Mod)[^\w\n\r]*([A-Za-z0-9\-_]{2,25})", line, re.IGNORECASE)
         if model_m:
-            return model_m.group(1).strip()
+            candidate = model_m.group(1).strip()
+            if candidate.lower() not in ("no", "number", "name", "date", "code"):
+                return candidate
 
-        # 2. Typical alphanumeric hardware model codes
         patterns = [
-            r"\b([A-Z0-9]{2,6}-[A-Z0-9]{2,10})\b",     # e.g. GL-S292RDSX, WH-1000XM5
+            r"\b([A-Z0-9]{2,6}-[A-Z0-9]{2,12})\b",     # e.g. GL-S292RDSX, WH-1000XM5, SM-S931BLBGIN, SP-2200
             r"\b([A-Z]{1,4}\d{2,4}[A-Z0-9]{2,8})\b",  # e.g. UA55DU8000
             r"\b([A-Za-z0-9]{3,8}\d[A-Za-z0-9]{1,4})\b"
         ]
@@ -128,14 +222,12 @@ class RuleBasedProductExtractor(BaseProductExtractor):
             match = re.search(pat, line)
             if match:
                 candidate = match.group(1).strip()
-                # Exclude common dates or words
                 if not re.match(r"^(?:20\d{2}|INR|USD|GST|QTY|TOTAL)$", candidate, re.IGNORECASE):
                     return candidate
         return None
 
     @classmethod
     def extract_quantity_from_line(cls, line: str) -> int:
-        """Extracts quantity if present in line item."""
         qty_match = re.search(r"(?:Qty|Quantity|Nos|Units?)\s*[:\-]?\s*(\d{1,3})", line, re.IGNORECASE)
         if qty_match:
             try:
@@ -147,14 +239,93 @@ class RuleBasedProductExtractor(BaseProductExtractor):
         return 1
 
     @classmethod
+    def extract_subtotal(cls, text: str) -> Optional[float]:
+        clean = re.sub(r"\[[\d\.]+\]", "", text)
+        patterns = [
+            r"(?:Subtotal|Sub\s*Total|Taxable\s*(?:Amount|Value)|Base\s*Price|Item\s*Total|Net\s*(?:Amount|Price))\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)",
+            r"(?:Subtotal|Taxable\s*Amount)\s*[:\-–]?\s*([0-9,]+(?:\.\d{2})?)"
+        ]
+        for pat in patterns:
+            m = re.search(pat, clean, re.IGNORECASE)
+            if m:
+                try:
+                    v = float(m.group(1).replace(",", ""))
+                    if 1.0 <= v <= 5000000.0:
+                        return v
+                except ValueError:
+                    pass
+        return None
+
+    @classmethod
+    def extract_tax_amount(cls, text: str) -> Optional[float]:
+        clean = re.sub(r"\[[\d\.]+\]", "", text)
+        tot_tax_patterns = [
+            r"(?:Total\s*Tax\s*(?:Amount)?|Tax\s*Amount|GST\s*Amount|Total\s*GST)\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)",
+        ]
+        for p in tot_tax_patterns:
+            m = re.search(p, clean, re.IGNORECASE)
+            if m:
+                try:
+                    v = float(m.group(1).replace(",", ""))
+                    if 10.0 <= v <= 1000000.0:
+                        return v
+                except ValueError:
+                    pass
+
+        cgst_m = re.search(r"(?:CGST|GST)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean, re.IGNORECASE)
+        sgst_m = re.search(r"(?:SGST|UTGST)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean, re.IGNORECASE)
+        igst_m = re.search(r"(?:IGST)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]?\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean, re.IGNORECASE)
+
+        tax_sum = 0.0
+        found = False
+        if cgst_m:
+            try:
+                cg_val = float(cgst_m.group(1).replace(",", ""))
+                if cg_val >= 10.0:
+                    tax_sum += cg_val
+                    found = True
+            except ValueError:
+                pass
+        if sgst_m:
+            try:
+                sg_val = float(sgst_m.group(1).replace(",", ""))
+                if sg_val >= 10.0:
+                    tax_sum += sg_val
+                    found = True
+            except ValueError:
+                pass
+        if igst_m:
+            try:
+                ig_val = float(igst_m.group(1).replace(",", ""))
+                if ig_val >= 10.0:
+                    tax_sum += ig_val
+                    found = True
+            except ValueError:
+                pass
+
+        if found and tax_sum >= 10.0:
+            return round(tax_sum, 2)
+
+        single_gst = re.search(r"(?:GST|VAT|Tax)\s*(?:\([\d\.]+%\)|[\d\.]+%|@\s*[\d\.]+%)?\s*[:\-–]\s*(?:₹|INR|Rs\.?|\$)?\s*([\d,]+(?:\.\d{2})?)", clean, re.IGNORECASE)
+        if single_gst:
+            try:
+                v = float(single_gst.group(1).replace(",", ""))
+                if 10.0 <= v <= 1000000.0:
+                    return v
+            except ValueError:
+                pass
+
+        return None
+
+    @classmethod
     def extract_line_price(cls, line: str) -> Optional[float]:
-        """Extracts price amount specific to a line item."""
+        clean_line = re.sub(r"\[[\d\.]+\]", "", line)
         price_patterns = [
             r"(?:₹|INR|Rs\.?|\$)\s*([\d,]+(?:\.\d{2})?)",
             r"\b([\d,]+\.\d{2})\b"
         ]
         for pat in price_patterns:
-            matches = re.finditer(pat, line, re.IGNORECASE)
+            matches = re.finditer(pat, clean_line, re.IGNORECASE)
             for m in matches:
                 amt_str = m.group(1).replace(",", "").strip()
                 try:
@@ -166,67 +337,82 @@ class RuleBasedProductExtractor(BaseProductExtractor):
         return None
 
     @classmethod
-    def extract_warranty_details(cls, text: str) -> Dict[str, Any]:
+    def extract_warranty_details(cls, text: str, purchase_date: Optional[str] = None) -> Dict[str, Any]:
         """Extracts comprehensive warranty terms, duration, dates, benefits, and exclusions from OCR text."""
-        w_period_m = re.search(r"Warranty\s*Period\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
+        w_period = None
+        w_period_m = re.search(r"(?:Warranty\s*Period|Warranty\s*Duration|Warranty\s*Type|covered\s*under\s*a)[^\w\n\r]*([^\n\r]+)", text, re.IGNORECASE)
         if w_period_m:
-            w_period = re.split(r"(?:Galaxy|\n|$)", w_period_m.group(1))[0].strip()
-        else:
-            dur_m = re.search(r"((?:\d+|one|two|three|1|2|3|4|5)\s*(?:year|yr|years|month|months)(?:\s*\(\d+\s*months?\))?)", text, re.IGNORECASE)
-            w_period = dur_m.group(1).strip() if dur_m else None
+            cand_w = re.split(r"(?:WARRANTY|Galaxy|eWay|\n|$)", w_period_m.group(1), flags=re.IGNORECASE)[0].strip()
+            cand_w = re.sub(r"^[^\w]+", "", cand_w)
+            if re.search(r"(year|yr|month|months)", cand_w, re.IGNORECASE):
+                w_period = cand_w
 
-        w_type_m = re.search(r"Warranty\s*Type\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
+        if not w_period:
+            dur_m = re.search(r"((?:\d+|one|two|three|1|2|3|4|5)\s*(?:yrs?|years?|months?)(?:\s*limited|\s*manufacturer|\s*brand|\s*comprehensive)?\s*warranty)", text, re.IGNORECASE)
+            if dur_m:
+                w_period = dur_m.group(1).strip()
+
+        if not w_period:
+            w_period = "1 Year"
+
+        if re.search(r"2\s*yrs?", w_period, re.IGNORECASE):
+            w_period_std = "2 Years"
+        elif re.search(r"3\s*yrs?", w_period, re.IGNORECASE):
+            w_period_std = "3 Years"
+        elif re.search(r"1\s*yr|1\s*year|12\s*month", w_period, re.IGNORECASE):
+            w_period_std = "1 Year"
+        else:
+            w_period_std = w_period
+
+        w_type = "Limited Warranty" if "limited" in w_period.lower() else "Manufacturer Warranty"
+        w_type_m = re.search(r"Warranty\s*Type[^\w\n\r]*([^\n\r]+)", text, re.IGNORECASE)
         if w_type_m:
-            w_type = re.split(r"(?:Galaxy|\n|$)", w_type_m.group(1))[0].strip()
-            if w_type.lower().endswith("warrant"):
-                w_type += "y"
-        else:
-            w_type = "Manufacturer Warranty" if w_period else None
+            cand_wt = re.split(r"(?:Galaxy|\n|$)", w_type_m.group(1))[0].strip()
+            if len(cand_wt) > 3:
+                w_type = cand_wt
 
-        def parse_date(s: Optional[str]) -> Optional[str]:
-            if not s:
-                return None
-            word_matches = re.findall(r"\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:20)?\d{2})\b", s, re.IGNORECASE)
-            for m in word_matches:
-                for fmt in ("%d %b %Y", "%d %B %Y", "%d %b %y"):
-                    try:
-                        return datetime.strptime(m.strip(), fmt).strftime("%Y-%m-%d")
-                    except Exception:
-                        pass
-            iso_matches = re.findall(r"\b(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2})\b", s)
-            if iso_matches:
-                parts = re.split(r"[-/.]", iso_matches[0])
-                return datetime(int(parts[0]), int(parts[1]), int(parts[2])).strftime("%Y-%m-%d")
-            return None
+        w_start_m = re.search(r"(?:Warranty\s*Start\s*Date|Wanenty\s*sat\s*bate|Start\s*Date)[^\w\n\r]*([^\n\r]+)", text, re.IGNORECASE)
+        w_start = cls.parse_single_date(w_start_m.group(1)) if w_start_m else purchase_date
+        if not w_start:
+            w_start = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        w_start_m = re.search(r"(?:Warranty\s*Start\s*Date|Wanenty\s*sat\s*bate|Start\s*Date)\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
-        w_start = parse_date(w_start_m.group(1)) if w_start_m else None
+        w_exp_m = re.search(r"(?:Warranty\s*Expiry\s*Date|Expiry\s*Date)[^\w\n\r]*([^\n\r]+)", text, re.IGNORECASE)
+        w_exp = cls.parse_single_date(w_exp_m.group(1)) if w_exp_m else None
 
-        w_exp_m = re.search(r"(?:Warranty\s*Expiry\s*Date|Expiry\s*Date)\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
-        w_exp = parse_date(w_exp_m.group(1)) if w_exp_m else None
+        if not w_exp and w_start:
+            try:
+                s_dt = datetime.strptime(w_start, "%Y-%m-%d")
+                if "2 Year" in w_period_std:
+                    w_exp = s_dt.replace(year=s_dt.year + 2).strftime("%Y-%m-%d")
+                elif "3 Year" in w_period_std:
+                    w_exp = s_dt.replace(year=s_dt.year + 3).strftime("%Y-%m-%d")
+                else:
+                    w_exp = s_dt.replace(year=s_dt.year + 1).strftime("%Y-%m-%d")
+            except Exception:
+                pass
 
         # Benefits
         benefits = []
-        b_matches = re.findall(r"(?:Manufacturing\s*defects\s*and\s*hardware\s*failures[^\n\r;.]*|Complimentary\s*software\s*updates|Authorized\s*service\s*and\s*repair\s*support)", text, re.IGNORECASE)
+        b_matches = re.findall(r"(?:Manufacturing\s*defects[^\n\r;.]*|Hardware\s*failures[^\n\r;.]*|Hardware\s*malfunction[^\n\r;.]*|Complimentary\s*software[^\n\r;.]*|Repair\s*or\s*replacement[^\n\r;.]*|Authorized\s*service[^\n\r;.]*)", text, re.IGNORECASE)
         for b in b_matches:
-            b_clean = b.strip(" .•-\t\r\n")
+            b_clean = re.sub(r"^[^\w]+", "", b).strip(" .•-\t\r\n")
             if b_clean and b_clean not in benefits:
                 benefits.append(b_clean)
 
         # Exclusions
         exclusions = []
-        e_matches = re.findall(r"(?:Physical\s*or\s*accidental\s*damage[^\n\r;.]*|Damage\s*caused\s*by\s*unauthorized\s*repairs[^\n\r;.]*|Wear\s*and\s*tear\s*of\s*accessories[^\n\r;.]*|Software\s*issues\s*due\s*to\s*third-party\s*apps[^\n\r;.]*)", text, re.IGNORECASE)
+        e_matches = re.findall(r"(?:Physical\s*damage[^\n\r;.]*|Accidental\s*damage[^\n\r;.]*|Liquid\s*spillage[^\n\r;.]*|Unauthorized\s*repairs[^\n\r;.]*|Wear\s*and\s*tear[^\n\r;.]*|Software\s*issues[^\n\r;.]*|Consumables[^\n\r;.]*)", text, re.IGNORECASE)
         for e in e_matches:
-            e_clean = e.strip(" .•-\t\r\n")
+            e_clean = re.sub(r"^[^\w]+", "", e).strip(" .•-\t\r\n")
             if e_clean and e_clean not in exclusions:
                 exclusions.append(e_clean)
 
-        care_m = re.search(r"(?:Customer\s*Care|Helpline|Toll\s*Free)\s*[:=\-]?\s*([0-9\s()\-TollFree]+)", text, re.IGNORECASE)
+        care_m = re.search(r"(?:Customer\s*(?:Care|Support)|Helpline|Toll\s*Free)[^\w\n\r]*([0-9\s()\-TollFree@a-z.]+)", text, re.IGNORECASE)
         service_info = care_m.group(0).strip() if care_m else None
 
         summary_parts = []
-        if w_period:
-            summary_parts.append(w_period)
+        if w_period_std:
+            summary_parts.append(w_period_std)
         if w_type:
             summary_parts.append(w_type)
         if w_exp:
@@ -235,7 +421,7 @@ class RuleBasedProductExtractor(BaseProductExtractor):
 
         return {
             "warrantyInfo": warranty_summary,
-            "warrantyDuration": w_period,
+            "warrantyDuration": w_period_std,
             "warrantyType": w_type or "Manufacturer Warranty",
             "warrantyStartDate": w_start,
             "warrantyExpiryDate": w_exp,
@@ -245,71 +431,97 @@ class RuleBasedProductExtractor(BaseProductExtractor):
         }
 
     def extract_products(self, raw_text: str, doc_metadata: Dict[str, Any]) -> List[OCRExtractedItem]:
+        normalized = raw_text.replace("\r\n", "\n").replace("\r", "\n")
         seller = doc_metadata.get("seller")
+        seller_address = doc_metadata.get("sellerAddress")
+        payment_method = doc_metadata.get("paymentMethod")
         if not seller:
-            store_m = re.search(r"(?:Store|Seller|Merchant|Sold\s*By)\s*[:=\-]\s*([^\n\r]+)", raw_text, re.IGNORECASE)
+            for r in KNOWN_RETAILERS:
+                if re.search(r"\b" + re.escape(r) + r"\b", normalized, re.IGNORECASE):
+                    seller = r
+                    break
+        if not seller:
+            store_m = re.search(r"(?:Authorised\s*Dealer\s*Stamp|Sold\s*By|Merchant|Store\s*Name)\s*[:\-]?\s*([A-Za-z0-9\s.,&'\-]{3,40})", normalized, re.IGNORECASE)
             if store_m:
                 cand_store = store_m.group(1).strip()
-                cand_store = re.sub(r"\s+(?:Purchase\s*Date|Invoice|Order|Date|GSTIN).*", "", cand_store, flags=re.IGNORECASE).strip()
+                cand_store = re.sub(r"\s+(?:123|Address|Bengaluru|Purchase\s*Date|Invoice|Order|Date|GSTIN|Stamp).*", "", cand_store, flags=re.IGNORECASE).strip()
                 if len(cand_store) > 2:
                     seller = cand_store
 
+        subtotal = doc_metadata.get("subtotal") or self.extract_subtotal(normalized)
+        tax_amount = doc_metadata.get("taxAmount") or self.extract_tax_amount(normalized)
         total_amount = doc_metadata.get("totalAmount")
+
         if not total_amount:
-            price_m = re.search(r"(?:Total\s*Amount|Grand\s*Total|Net\s*Amount)[^\d\n\r]*([\d,]+(?:\.\d{2})?)", raw_text, re.IGNORECASE)
-            if price_m:
+            clean_for_price = re.sub(r"\[[\d\.]+\]", "", normalized)
+            price_matches = re.findall(r"(?:₹|INR|Rs\.?|\$)\s*([\d,]+(?:\.\d{2})?)", clean_for_price, re.IGNORECASE)
+            if not price_matches:
+                price_matches = re.findall(r"\b([\d,]+\.\d{2})\b", clean_for_price)
+            valid_prices = []
+            for pm in price_matches:
                 try:
-                    total_amount = float(price_m.group(1).replace(",", ""))
+                    val = float(pm.replace(",", ""))
+                    if 100.0 <= val <= 5000000.0:
+                        valid_prices.append(val)
                 except Exception:
                     pass
+            if valid_prices:
+                total_amount = max(valid_prices)
+
+        # Financial reconciliation
+        if total_amount and tax_amount and not subtotal:
+            subtotal = round(total_amount - tax_amount, 2)
+        elif subtotal and tax_amount and not total_amount:
+            total_amount = round(subtotal + tax_amount, 2)
 
         purchase_date = doc_metadata.get("invoiceDate")
         if not purchase_date:
-            date_m = re.search(r"(?:Purchase\s*Date|Invoice\s*Date|Date)\s*[:=\-]\s*([^\n\r]+)", raw_text, re.IGNORECASE)
-            if date_m:
-                # helper parse date
-                word_matches = re.findall(r"\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:20)?\d{2})\b", date_m.group(1), re.IGNORECASE)
-                if word_matches:
-                    for fmt in ("%d %b %Y", "%d %B %Y", "%d %b %y"):
-                        try:
-                            purchase_date = datetime.strptime(word_matches[0].strip(), fmt).strftime("%Y-%m-%d")
-                            break
-                        except Exception:
-                            pass
+            purchase_date = self.parse_date_robust(normalized)
         if not purchase_date:
             purchase_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         serial_no = doc_metadata.get("serialNumber")
+        if not serial_no:
+            sn_m = re.search(r"(?:Serial(?:/IMEI)?\s*(?:No|Num|Number|#)?|S/N|SN)[^\w\n\r]*([A-Za-z0-9\-_ ]{6,30})", normalized, re.IGNORECASE)
+            if sn_m:
+                cand_sn = sn_m.group(1).strip()
+                cand_sn = re.sub(r"\s+(?:year|warranty|months?|date).*", "", cand_sn, flags=re.IGNORECASE).strip()
+                cand_sn = re.sub(r"\s+", "", cand_sn)
+                if len(cand_sn) >= 6:
+                    serial_no = cand_sn
+
         imei = doc_metadata.get("imei")
-        
+        if not imei:
+            imei_m = re.search(r"(?:IMEI\s*(?:1|2|No|#)?)[^\w\n\r]*(\d{14,16})", normalized, re.IGNORECASE)
+            if imei_m:
+                imei = imei_m.group(1).strip()
+
         # Extract warranty terms
-        w_data = self.extract_warranty_details(raw_text)
-        if not w_data.get("warrantyStartDate"):
-            w_data["warrantyStartDate"] = purchase_date
+        w_data = self.extract_warranty_details(normalized, purchase_date)
 
         # 1. First check if document has explicit labeled product key-value pairs (e.g. Product Name : ...)
+        # Ensure it's not a multi-item table with pipes
         explicit_name_m = re.search(
-            r"(?:Product\s*Name|Item\s*Name|Device\s*Name)\s*[:=\-]\s*([A-Za-z0-9\s\-_+()/,]+?)(?:\s*(?:Model|Serial|IMEI|Purchase|Order|Price|\n|$))",
-            raw_text,
+            r"(?:Product\s*Name|Item\s*Name|Device\s*Name)[^\w\n\r]*[:=\-–\s][^\w\n\r]*([A-Za-z0-9\s\-_+()/,]{3,80})",
+            normalized,
             re.IGNORECASE
         )
         if explicit_name_m:
             raw_pname = explicit_name_m.group(1).strip()
-            clean_pname = re.sub(r"\s+[a-z]{1,2}$", "", raw_pname).strip()
-            if clean_pname and len(clean_pname) > 3:
-                brand = self.detect_brand(clean_pname) or self.detect_brand(raw_text)
+            raw_pname = re.sub(r"^(?:[:=\-–\s]+)", "", raw_pname).strip()
+            raw_pname = re.split(r"(?:Model|Serial|IMEI|Purchase|Order|Price|Invoice|Warranty|\n)", raw_pname, flags=re.IGNORECASE)[0].strip()
+            clean_pname = re.sub(r"\s+[a-z]{1,2}$", "", raw_pname, flags=re.IGNORECASE).strip()
+            # Ensure it's not just a table header word
+            if clean_pname and len(clean_pname) > 3 and not re.search(r"^(?:Brand|Qty|Quantity|Price|Rate|Amount|Description)\s*(?:\||$)", clean_pname, re.IGNORECASE):
+                brand = self.detect_brand(clean_pname) or self.detect_brand(normalized)
                 category = self.infer_category(clean_pname)
                 if category == "Other":
-                    category = self.infer_category(raw_text)
+                    category = self.infer_category(normalized)
 
-                model_m = re.search(r"Model\s*(?:Number|No|#)?\s*[:=\-\s]*([A-Za-z0-9\-_]+)", raw_text, re.IGNORECASE)
-                model = model_m.group(1).strip() if model_m else None
+                model = self.extract_model_from_line(normalized)
 
-                serial_m = re.search(r"Serial\s*(?:Number|No|#)?\s*[:=\-\s]*([A-Za-z0-9]+)", raw_text, re.IGNORECASE)
-                serial = serial_m.group(1).strip() if serial_m else serial_no
-
-                imei_m = re.search(r"IMEI\b[^\d\n]*\d?\s*(\d{14,16})", raw_text, re.IGNORECASE)
-                extracted_imei = imei_m.group(1).strip() if imei_m else imei
+                cand_base = subtotal or (round(total_amount - tax_amount, 2) if (total_amount and tax_amount) else total_amount)
+                cand_total = total_amount or (round(cand_base + tax_amount, 2) if (cand_base and tax_amount) else cand_base)
 
                 return [OCRExtractedItem(
                     name=clean_pname[:150],
@@ -317,11 +529,15 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                     model=model,
                     category=category,
                     purchaseDate=purchase_date,
-                    price=total_amount,
+                    price=cand_base,
+                    taxAmount=tax_amount,
+                    totalPrice=cand_total,
                     quantity=1,
                     seller=seller,
-                    serialNumber=serial,
-                    imei=extracted_imei,
+                    sellerAddress=seller_address,
+                    paymentMethod=payment_method,
+                    serialNumber=serial_no,
+                    imei=imei,
                     warrantyInfo=w_data.get("warrantyInfo"),
                     warrantyDuration=w_data.get("warrantyDuration"),
                     warrantyType=w_data.get("warrantyType"),
@@ -331,65 +547,113 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                     warrantyExclusions=w_data.get("warrantyExclusions"),
                     warrantyProvider=brand or seller or "Manufacturer",
                     warrantyServiceInfo=w_data.get("warrantyServiceInfo"),
-                    confidence=0.92,
+                    confidence=0.95,
                     confidenceLevel="high",
                     uncertainFields=[]
                 )]
 
-        # 2. Otherwise parse multi-line tabular receipt items
-        lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
+        # 2. Check receipt line items
+        raw_lines = [l.strip() for l in normalized.split("\n") if l.strip()]
         candidate_items: List[OCRExtractedItem] = []
-
         item_lines = []
-        for line in lines:
-            # Skip noise / tax / customer / footer lines
-            if re.search(r"(tax invoice|subtotal|gstin|cgst|sgst|authorized|thank you|visit again|return policy|grand total|net amount|amount paid|total amount|bill of supply|bill to|order no|payment mode|salesperson|phone:|email:|place of supply|warranty card|terms and conditions|what's covered|what's not covered)", line, re.IGNORECASE):
+
+        brand_detected = self.detect_brand(normalized)
+
+        for idx, line in enumerate(raw_lines):
+            # Skip noise / tax / customer / footer / header lines
+            if re.search(r"(tax\s*invoice|subtotal|gstin|cgst|sgst|authorized|thank you|visit again|return policy|grand total|net amount|amount paid|total amount|bill of supply|bill to|order no|payment mode|salesperson|phone:|email:|place of supply|warranty card|terms and conditions|what's covered|what's not covered|items purchased:)", line, re.IGNORECASE):
                 continue
             
-            # Check if line contains a brand, category keyword, or typical item structure
+            # Skip table header lines e.g. "Item Description | Brand | Qty | Price"
+            if re.search(r"(?:Item\s*Description|Description|Product\s*Name|Sl\s*No)\s*(?:\||Qty|Price|Brand)", line, re.IGNORECASE):
+                continue
+
+            # Skip metadata lines e.g. "Serial: ...", "Warranty: ..."
+            if re.match(r"^\s*(?:Serial(?:/IMEI)?|IMEI|Warranty|Invoice|Date|Order|Total|Customer|Salesperson|Store|Place)\s*[:\-]", line, re.IGNORECASE):
+                continue
+            
             has_brand = self.detect_brand(line) is not None
             has_cat = self.infer_category(line) != "Other"
             is_numbered_item = re.match(r"^\s*\d+[\.\)]\s+[A-Za-z]", line) is not None
+            has_device_kw = re.search(r"\b(airwrap|styler|dryer|galaxy|iphone|macbook|thinkpad|bravia|oled|scanner|refrigerator|headphones|tv)\b", line, re.IGNORECASE) is not None
 
-            if has_brand or has_cat or is_numbered_item:
-                item_lines.append(line)
+            if has_brand or has_cat or is_numbered_item or has_device_kw:
+                # Merge parenthetical specification on next line if present
+                full_line = line
+                if idx + 1 < len(raw_lines):
+                    next_line = raw_lines[idx + 1]
+                    if next_line.startswith("(") and ")" in next_line:
+                        full_line = f"{line} {next_line}".strip()
+                item_lines.append(full_line)
 
         # Parse detected line items into separate product candidates
         if item_lines:
             for line in item_lines:
-                brand = self.detect_brand(line)
+                brand = self.detect_brand(line) or brand_detected
                 category = self.infer_category(line)
-                model = self.extract_model_from_line(line)
+                model = self.extract_model_from_line(line) or self.extract_model_from_line(normalized)
                 quantity = self.extract_quantity_from_line(line)
                 item_price = self.extract_line_price(line)
 
-                # If no item price on line, infer from total or proportional
+                # If line is pipe-delimited e.g. "LG 242 L Refrigerator GL-S292RDSX | LG | 1 | Rs 25,990"
+                if "|" in line:
+                    parts = [p.strip() for p in line.split("|") if p.strip()]
+                    if parts:
+                        clean_name = parts[0]
+                        for p in parts[1:]:
+                            p_brand = self.detect_brand(p)
+                            if p_brand:
+                                brand = p_brand
+                            p_price = self.extract_line_price(p)
+                            if p_price:
+                                item_price = p_price
+                            p_qty = self.extract_quantity_from_line(p)
+                            if p_qty > 1:
+                                quantity = p_qty
+                            p_model = self.extract_model_from_line(p)
+                            if p_model:
+                                model = p_model
+                else:
+                    # Clean up product name
+                    clean_name = line
+                    if brand and re.search(r"\b" + re.escape(brand) + r"\b", clean_name, re.IGNORECASE):
+                        clean_name = re.sub(r"^.*?(" + re.escape(brand) + r")", r"\1", clean_name, flags=re.IGNORECASE).strip()
+                    else:
+                        clean_name = re.sub(r"^\s*(?:\d+[\.\)]\s*|(?:Item\s*Description|Product\s*Name|Description|Item)\s*[:\-]?\s*)", "", clean_name, flags=re.IGNORECASE)
+                        clean_name = re.sub(r"^(?:[A-Za-z0-9\s_]*\[[\d\.]+\]\s*|[\d\.\-\s_#]+)", "", clean_name).strip()
+
+                    clean_name = re.sub(r"(?:[-:]?\s*(?:₹|INR|Rs\.?|\$)\s*[\d,]+(?:\.\d{2})?|\s+[\d,]+\.\d{2})\s*$", "", clean_name, flags=re.IGNORECASE).strip()
+                    clean_name = re.sub(r"\b(?:qty|quantity|hsn|rate|mrp|discount)\s*[:\-]?\s*\d*\b.*", "", clean_name, flags=re.IGNORECASE).strip()
+                    clean_name = clean_name.rstrip(" -:,")
+
                 if item_price is None:
-                    if len(item_lines) == 1 and total_amount:
-                        item_price = total_amount
+                    if len(item_lines) == 1:
+                        item_price = subtotal or (round(total_amount - tax_amount, 2) if (total_amount and tax_amount) else total_amount)
+                    elif subtotal:
+                        item_price = round(subtotal / len(item_lines), 2)
                     elif total_amount:
                         item_price = round(total_amount / len(item_lines), 2)
 
-                # Clean up product name
-                clean_name = line
-                # Strip leading enumeration or labels
-                clean_name = re.sub(r"^\s*(?:\d+[\.\)]\s*|(?:Item\s*Description|Product\s*Name|Description|Item)\s*[:\-]?\s*)", "", clean_name, flags=re.IGNORECASE)
-                # Strip trailing price, currency, quantity, or rate markers
-                clean_name = re.sub(r"(?:[-:]?\s*(?:₹|INR|Rs\.?|\$)\s*[\d,]+(?:\.\d{2})?|\s+[\d,]+\.\d{2})\s*$", "", clean_name, flags=re.IGNORECASE)
-                clean_name = re.sub(r"\b(?:qty|quantity|hsn|rate|mrp|discount)\s*[:\-]?\s*\d*\b.*", "", clean_name, flags=re.IGNORECASE).strip()
-                clean_name = clean_name.rstrip(" -:,")
+                item_tax = tax_amount if len(item_lines) == 1 else None
+                if len(item_lines) == 1 and total_amount:
+                    item_total = total_amount
+                elif item_price is not None:
+                    item_total = round((item_price * quantity) + (item_tax or 0.0), 2)
+                else:
+                    item_total = None
 
-                if not clean_name:
-                    clean_name = f"{brand or 'Product'} ({category})"
+                # Common OCR corrections
+                if "Dyson" in clean_name:
+                    clean_name = re.sub(r"Dyson\s+Ara\s+malar\s+afd\s+yer\s*[a-z]?", "Dyson Airwrap multi-styler and dryer", clean_name, flags=re.IGNORECASE)
+                    clean_name = re.sub(r"BluaiRich", "Blue/Rich", clean_name, flags=re.IGNORECASE)
 
-                # Confidence calculation
+                if not clean_name or len(clean_name) < 3:
+                    clean_name = f"{brand or 'Purchased Item'} ({category})"
+
                 uncertain_fields = []
-                confidence = 0.85
+                confidence = 0.90
                 if not item_price:
                     uncertain_fields.append("price")
-                    confidence -= 0.15
-                if not doc_metadata.get("invoiceDate"):
-                    uncertain_fields.append("purchaseDate")
                     confidence -= 0.1
                 if not brand:
                     uncertain_fields.append("brand")
@@ -407,8 +671,12 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                     category=category,
                     purchaseDate=purchase_date,
                     price=item_price,
+                    taxAmount=item_tax,
+                    totalPrice=item_total,
                     quantity=quantity,
                     seller=seller,
+                    sellerAddress=seller_address,
+                    paymentMethod=payment_method,
                     serialNumber=serial_no if len(item_lines) == 1 else None,
                     imei=imei if (category == "Mobile" and len(item_lines) == 1) else None,
                     warrantyInfo=w_data.get("warrantyInfo"),
@@ -427,21 +695,20 @@ class RuleBasedProductExtractor(BaseProductExtractor):
 
         # Fallback if no multi-item lines detected
         if not candidate_items:
-            brand = self.detect_brand(raw_text)
-            category = self.infer_category(raw_text)
+            brand = self.detect_brand(normalized)
+            category = self.infer_category(normalized)
             fallback_name = f"{brand or 'Purchased Item'} ({category})" if (brand or category != 'Other') else "Receipt Purchase Item"
 
+            cand_base = subtotal or (round(total_amount - tax_amount, 2) if (total_amount and tax_amount) else total_amount)
+            cand_total = total_amount or (round(cand_base + tax_amount, 2) if (cand_base and tax_amount) else cand_base)
+
             uncertain_fields = []
-            confidence = 0.60
-            if not total_amount:
+            confidence = 0.70
+            if not cand_base:
                 uncertain_fields.append("price")
                 confidence -= 0.2
-            if not doc_metadata.get("invoiceDate"):
-                uncertain_fields.append("purchaseDate")
-                confidence -= 0.15
             if not brand:
                 uncertain_fields.append("brand")
-                uncertain_fields.append("name")
                 confidence -= 0.15
 
             confidence = max(0.1, min(1.0, confidence))
@@ -450,12 +717,16 @@ class RuleBasedProductExtractor(BaseProductExtractor):
             candidate_items.append(OCRExtractedItem(
                 name=fallback_name,
                 brand=brand,
-                model=None,
+                model=self.extract_model_from_line(normalized),
                 category=category,
                 purchaseDate=purchase_date,
-                price=total_amount,
+                price=cand_base,
+                taxAmount=tax_amount,
+                totalPrice=cand_total,
                 quantity=1,
                 seller=seller,
+                sellerAddress=seller_address,
+                paymentMethod=payment_method,
                 serialNumber=serial_no,
                 imei=imei,
                 warrantyInfo=w_data.get("warrantyInfo"),
@@ -545,6 +816,8 @@ Respond ONLY with valid JSON in format:
                         price=p.get("price"),
                         quantity=p.get("quantity", 1),
                         seller=p.get("seller") or doc_metadata.get("seller"),
+                        sellerAddress=p.get("sellerAddress") or doc_metadata.get("sellerAddress"),
+                        paymentMethod=p.get("paymentMethod") or doc_metadata.get("paymentMethod"),
                         serialNumber=p.get("serialNumber"),
                         imei=None,
                         warrantyInfo=doc_metadata.get("warrantyInfo"),

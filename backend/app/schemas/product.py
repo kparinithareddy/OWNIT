@@ -37,9 +37,13 @@ class ProductCreate(BaseModel):
     model: str = Field(..., min_length=1, max_length=100, description="Model name or number")
     category: ProductCategoryType = Field(default="Other", description="Product category")
     purchaseDate: str = Field(..., description="Date of purchase (YYYY-MM-DD)")
-    price: float = Field(..., ge=0, description="Purchase price in currency value")
+    price: float = Field(..., ge=0, description="Base purchase price before taxes / subtotal")
+    taxAmount: Optional[float] = Field(default=None, ge=0, description="GST / Tax amount")
+    totalPrice: Optional[float] = Field(default=None, ge=0, description="Total price inclusive of GST / tax")
     quantity: int = Field(default=1, ge=1, description="Quantity purchased")
     seller: Optional[str] = Field(default=None, max_length=120, description="Store or vendor name")
+    sellerAddress: Optional[str] = Field(default=None, max_length=300, description="Store or vendor address")
+    paymentMethod: Optional[str] = Field(default=None, max_length=100, description="Payment method used (e.g. UPI, Credit Card, Cash)")
     serialNumber: Optional[str] = Field(default=None, max_length=100, description="Unique serial number")
     imei: Optional[str] = Field(default=None, max_length=50, description="IMEI number (for mobile/cellular devices)")
     image: Optional[str] = Field(default=None, description="Image URL or placeholder identifier")
@@ -66,8 +70,12 @@ class ProductUpdate(BaseModel):
     category: Optional[ProductCategoryType] = None
     purchaseDate: Optional[str] = None
     price: Optional[float] = Field(default=None, ge=0)
+    taxAmount: Optional[float] = Field(default=None, ge=0)
+    totalPrice: Optional[float] = Field(default=None, ge=0)
     quantity: Optional[int] = Field(default=None, ge=1)
     seller: Optional[str] = Field(default=None, max_length=120)
+    sellerAddress: Optional[str] = Field(default=None, max_length=300)
+    paymentMethod: Optional[str] = Field(default=None, max_length=100)
     serialNumber: Optional[str] = Field(default=None, max_length=100)
     imei: Optional[str] = Field(default=None, max_length=50)
     image: Optional[str] = None
@@ -98,8 +106,12 @@ class ProductResponse(BaseModel):
     category: str
     purchaseDate: str
     price: float
+    taxAmount: Optional[float] = None
+    totalPrice: Optional[float] = None
     quantity: int = 1
     seller: Optional[str] = None
+    sellerAddress: Optional[str] = None
+    paymentMethod: Optional[str] = None
     serialNumber: Optional[str] = None
     imei: Optional[str] = None
     image: Optional[str] = None

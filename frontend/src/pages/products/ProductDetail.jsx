@@ -5,6 +5,8 @@ import {
   Calendar,
   DollarSign,
   Store,
+  MapPin,
+  CreditCard,
   Hash,
   FileText,
   UploadCloud,
@@ -400,10 +402,16 @@ export default function ProductDetail() {
 
           <div className="hero-right">
             <div className="price-tag-card">
-              <span className="price-tag-label">Total Asset Value</span>
-              <span className="price-tag-value">₹{product.price.toLocaleString('en-IN')}</span>
-              {product.quantity > 1 && (
-                <span className="price-tag-qty">Quantity: {product.quantity}</span>
+              <span className="price-tag-label">Total Price (incl. GST)</span>
+              <span className="price-tag-value">₹{(product.totalPrice || ((product.price * product.quantity) + (product.taxAmount || 0))).toLocaleString('en-IN')}</span>
+              {product.taxAmount !== null && product.taxAmount !== undefined ? (
+                <span className="price-tag-qty" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Base: ₹{product.price.toLocaleString('en-IN')} + GST: ₹{product.taxAmount.toLocaleString('en-IN')}
+                </span>
+              ) : (
+                product.quantity > 1 && (
+                  <span className="price-tag-qty">Quantity: {product.quantity}</span>
+                )
               )}
             </div>
 
@@ -734,13 +742,39 @@ export default function ProductDetail() {
                   <span className="meta-val">{product.purchaseDate}</span>
                 </div>
                 <div className="detail-meta-row">
-                  <span className="meta-label"><DollarSign size={15} /> Unit Price:</span>
+                  <span className="meta-label"><DollarSign size={15} /> Base Price:</span>
                   <span className="meta-val">₹{product.price.toLocaleString('en-IN')}</span>
+                </div>
+                {product.taxAmount !== null && product.taxAmount !== undefined && (
+                  <div className="detail-meta-row">
+                    <span className="meta-label"><DollarSign size={15} /> GST / Tax Amount:</span>
+                    <span className="meta-val" style={{ color: '#b45309', fontWeight: 600 }}>₹{product.taxAmount.toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+                <div className="detail-meta-row">
+                  <span className="meta-label"><DollarSign size={15} /> Total Price (incl. GST):</span>
+                  <span className="meta-val" style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                    ₹{(product.totalPrice || ((product.price * product.quantity) + (product.taxAmount || 0))).toLocaleString('en-IN')}
+                  </span>
                 </div>
                 <div className="detail-meta-row">
                   <span className="meta-label"><Store size={15} /> Store / Vendor:</span>
                   <span className="meta-val">{product.seller || 'Not specified'}</span>
                 </div>
+                {product.sellerAddress && (
+                  <div className="detail-meta-row">
+                    <span className="meta-label"><MapPin size={15} /> Store Address:</span>
+                    <span className="meta-val">{product.sellerAddress}</span>
+                  </div>
+                )}
+                {product.paymentMethod && (
+                  <div className="detail-meta-row">
+                    <span className="meta-label"><CreditCard size={15} /> Payment Mode:</span>
+                    <span className="meta-val">
+                      <Badge variant="info" size="sm">{product.paymentMethod}</Badge>
+                    </span>
+                  </div>
+                )}
                 <div className="detail-meta-row">
                   <span className="meta-label"><Package size={15} /> Quantity:</span>
                   <span className="meta-val">{product.quantity} unit(s)</span>

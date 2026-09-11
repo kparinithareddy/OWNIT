@@ -194,3 +194,47 @@ def test_exact_multi_product_example():
     assert headphones.brand == "Sony"
     assert headphones.category == "Audio"
     assert "WH-1000XM5" in (headphones.model or headphones.name)
+
+
+def test_receipt_parser_price_and_tax_breakdown():
+    """
+    Tests extraction of Base Unit Price, GST / Tax breakdown, and Grand Total.
+    """
+    tax_invoice_text = """
+    Samsung Experience Store
+    Authorised Dealer Stamp
+    Samsung Smart Cafe
+    Phoenix Mall, Bengaluru - 560048
+    Payment Mode: Credit Card (HDFC Bank)
+    
+    TAX INVOICE
+    Invoice No: EXP/BLR/2025/9981
+    Purchase Date: 15-08-2025
+    
+    Product Name: Samsung Galaxy S25 5G
+    Model: SM-S931BLBGIN
+    Serial No: R5CW1098XYZ
+    IMEI: 359876543210987
+    1 Year Comprehensive Warranty
+    
+    Subtotal: 62,711.86
+    CGST @ 9%: 5,644.07
+    SGST @ 9%: 5,644.07
+    Total Tax Amount: 11,288.14
+    Grand Total: 74,000.00
+    """
+    items, meta = ReceiptParser.parse_receipt(tax_invoice_text)
+    assert len(items) >= 1
+    item = items[0]
+    
+    assert item.brand == "Samsung"
+    assert item.category == "Mobile"
+    assert item.price == 62711.86
+    assert item.taxAmount == 11288.14
+    assert item.totalPrice == 74000.0
+    assert "Samsung" in (item.seller or "")
+    assert "Phoenix Mall, Bengaluru" in (item.sellerAddress or "")
+    assert item.paymentMethod == "Credit Card"
+    assert meta["subtotal"] == 62711.86
+    assert meta["taxAmount"] == 11288.14
+    assert meta["totalAmount"] == 74000.0

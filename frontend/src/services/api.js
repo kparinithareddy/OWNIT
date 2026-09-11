@@ -217,10 +217,17 @@ export const maintenanceApi = {
   delete: (id) => request(`/maintenance/${id}`, { method: 'DELETE' })
 };
 
-// Local AI (Ollama) API methods
+// Local AI (Ollama) & Global Assistant API methods
 export const aiApi = {
   getStatus: () => request('/ai/status', { method: 'GET' }),
   testPrompt: (payload) => request('/ai/test', { method: 'POST', body: payload }),
+  // Conversation thread methods
+  createConversation: (payload) => request('/ai/conversations', { method: 'POST', body: payload }),
+  listConversations: () => request('/ai/conversations', { method: 'GET' }),
+  getConversation: (id) => request(`/ai/conversations/${id}`, { method: 'GET' }),
+  sendConversationMessage: (id, payload) => request(`/ai/conversations/${id}/messages`, { method: 'POST', body: payload }),
+  deleteConversation: (id) => request(`/ai/conversations/${id}`, { method: 'DELETE' }),
+  // Legacy product chat methods
   getChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'GET' }),
   sendMessage: (payload) => request('/ai/chat', { method: 'POST', body: payload }),
   clearChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'DELETE' })

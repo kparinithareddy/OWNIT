@@ -8,6 +8,8 @@ import {
   DollarSign,
   Hash,
   Store,
+  MapPin,
+  CreditCard,
   RotateCcw,
   Sparkles,
   Info
@@ -64,8 +66,12 @@ export default function ProductFormModal({
     category: 'Mobile',
     purchaseDate: new Date().toISOString().split('T')[0],
     price: '',
+    taxAmount: '',
+    totalPrice: '',
     quantity: 1,
     seller: '',
+    sellerAddress: '',
+    paymentMethod: '',
     serialNumber: '',
     imei: '',
     image: '',
@@ -93,9 +99,13 @@ export default function ProductFormModal({
         model: initialProduct.model || '',
         category: initialProduct.category || 'Other',
         purchaseDate: initialProduct.purchaseDate || new Date().toISOString().split('T')[0],
-        price: initialProduct.price !== undefined ? String(initialProduct.price) : '',
+        price: initialProduct.price !== undefined && initialProduct.price !== null ? String(initialProduct.price) : '',
+        taxAmount: initialProduct.taxAmount !== undefined && initialProduct.taxAmount !== null ? String(initialProduct.taxAmount) : '',
+        totalPrice: initialProduct.totalPrice !== undefined && initialProduct.totalPrice !== null ? String(initialProduct.totalPrice) : '',
         quantity: initialProduct.quantity !== undefined ? initialProduct.quantity : 1,
         seller: initialProduct.seller || '',
+        sellerAddress: initialProduct.sellerAddress || '',
+        paymentMethod: initialProduct.paymentMethod || '',
         serialNumber: initialProduct.serialNumber || '',
         imei: initialProduct.imei || '',
         image: initialProduct.image || '',
@@ -117,8 +127,12 @@ export default function ProductFormModal({
         category: 'Mobile',
         purchaseDate: todayStr,
         price: '',
+        taxAmount: '',
+        totalPrice: '',
         quantity: 1,
         seller: '',
+        sellerAddress: '',
+        paymentMethod: '',
         serialNumber: '',
         imei: '',
         image: '',
@@ -136,6 +150,16 @@ export default function ProductFormModal({
   const handleChange = (field, value) => {
     setFormData((prev) => {
       const updated = { ...prev, [field]: value };
+
+      // Auto-calculate Total Price when base price, taxAmount, or quantity changes
+      if (field === 'price' || field === 'taxAmount' || field === 'quantity') {
+        const p = parseFloat(field === 'price' ? value : prev.price) || 0;
+        const q = parseInt(field === 'quantity' ? value : prev.quantity, 10) || 1;
+        const t = parseFloat(field === 'taxAmount' ? value : prev.taxAmount) || 0;
+        if (p > 0) {
+          updated.totalPrice = String(Math.round(((p * q) + t) * 100) / 100);
+        }
+      }
 
       // Auto-detect verified seller defaults if seller changes and user hasn't set return duration
       if (field === 'seller' && value && prev.returnDurationPreset === 'None') {
@@ -208,8 +232,12 @@ export default function ProductFormModal({
       category: formData.category,
       purchaseDate: formData.purchaseDate,
       price: parseFloat(formData.price),
+      taxAmount: formData.taxAmount !== '' && !isNaN(Number(formData.taxAmount)) ? parseFloat(formData.taxAmount) : null,
+      totalPrice: formData.totalPrice !== '' && !isNaN(Number(formData.totalPrice)) ? parseFloat(formData.totalPrice) : null,
       quantity: parseInt(formData.quantity, 10) || 1,
       seller: formData.seller.trim() || null,
+      sellerAddress: formData.sellerAddress.trim() || null,
+      paymentMethod: formData.paymentMethod.trim() || null,
       serialNumber: formData.serialNumber.trim() || null,
       imei: formData.imei.trim() || null,
       image: formData.image.trim() || null,
@@ -321,15 +349,39 @@ export default function ProductFormModal({
           />
 
           <Input
-            label="Price (₹)"
+            label="Base Price (₹)"
             type="number"
             step="0.01"
             min="0"
             icon={DollarSign}
-            placeholder="e.g. 134900"
+            placeholder="e.g. 52990"
             value={formData.price}
             onChange={(e) => handleChange('price', e.target.value)}
             required
+            disabled={isSubmitting}
+          />
+
+          <Input
+            label="GST / Tax (₹)"
+            type="number"
+            step="0.01"
+            min="0"
+            icon={DollarSign}
+            placeholder="e.g. 9538.20"
+            value={formData.taxAmount}
+            onChange={(e) => handleChange('taxAmount', e.target.value)}
+            disabled={isSubmitting}
+          />
+
+          <Input
+            label="Total Price (incl. GST) (₹)"
+            type="number"
+            step="0.01"
+            min="0"
+            icon={DollarSign}
+            placeholder="e.g. 62528.20"
+            value={formData.totalPrice}
+            onChange={(e) => handleChange('totalPrice', e.target.value)}
             disabled={isSubmitting}
           />
 
@@ -351,6 +403,26 @@ export default function ProductFormModal({
             placeholder="e.g. Amazon India, Croma, Apple Store"
             value={formData.seller}
             onChange={(e) => handleChange('seller', e.target.value)}
+            disabled={isSubmitting}
+          />
+
+          <Input
+            label="Store / Company Address"
+            icon={MapPin}
+            placeholder="e.g. Prestige Tech Park, Bengaluru - 560037"
+            value={formData.sellerAddress}
+            onChange={(e) => handleChange('sellerAddress', e.target.value)}
+            disabled={isSubmitting}
+          />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+          <Input
+            label="Payment Method"
+            icon={CreditCard}
+            placeholder="e.g. UPI (Google Pay), Credit Card, Cash, Net Banking"
+            value={formData.paymentMethod}
+            onChange={(e) => handleChange('paymentMethod', e.target.value)}
             disabled={isSubmitting}
           />
 
