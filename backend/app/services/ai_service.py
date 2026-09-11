@@ -148,8 +148,10 @@ class OllamaAIService(BaseAIService):
             "model": target_model,
             "prompt": prompt,
             "stream": False,
+            "keep_alive": "30m",
             "options": {
-                "temperature": temperature
+                "temperature": temperature,
+                "num_predict": 400
             }
         }
         if system_prompt:

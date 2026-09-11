@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     TESSERACT_CMD_PATH: str = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2"
-    OLLAMA_TIMEOUT_SECONDS: float = 30.0
+    OLLAMA_TIMEOUT_SECONDS: float = 120.0
 
 
     model_config = SettingsConfigDict(
