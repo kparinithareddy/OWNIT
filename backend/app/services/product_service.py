@@ -116,11 +116,15 @@ class ProductService:
 
     async def get_user_brands(self, user_id: str) -> List[str]:
         """
-        Retrieves unique product brands recorded by the authenticated user.
+        Retrieves unique product brands recorded by the authenticated user,
+        merged with popular catalog brands so the filter dropdown is always populated.
         """
         raw_brands = await self.collection.distinct("brand", {"userId": user_id})
-        clean_brands = {b.strip() for b in raw_brands if b and b.strip()}
-        return sorted(list(clean_brands))
+        clean_user_brands = {b.strip() for b in raw_brands if b and b.strip()}
+
+        from app.services.product_extractor import KNOWN_BRANDS
+        all_brands = sorted(list(clean_user_brands | set(KNOWN_BRANDS)))
+        return all_brands
 
     async def create_product(self, user_id: str, data: ProductCreate) -> ProductResponse:
         """
