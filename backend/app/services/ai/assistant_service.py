@@ -303,11 +303,11 @@ class AssistantService:
         """
         Processes a conversation turn:
         1. Validates and loads conversation & user settings.
-        2. Routes context (global vs product).
+        2. Routes context (global vs product) and auto-detects product references.
         3. Retrieves targeted facts from MongoDB.
         4. Synthesizes prompt and calls Ollama LLM.
         5. Falls back cleanly to deterministic response if Ollama is unavailable.
-        6. Persists message history and returns structured response.
+        6. Persists message history and returns structured response with product-tailored source citations.
         """
         conv = await conversation_service.get_conversation(conversation_id, user_id)
 
@@ -332,6 +332,20 @@ class AssistantService:
         product_data = {}
         if product_id:
             product_data = await retrieval_service.get_product_context_data(product_id, user_id)
+        elif context_type == "global":
+            # Auto-detect if user query mentions a specific product in vault
+            msg_lower = request.message.lower()
+            matching_prod = None
+            for p in portfolio_stats.get("products", []):
+                p_name = (p.get("name") or "").lower()
+                p_brand = (p.get("brand") or "").lower()
+                p_model = (p.get("model") or "").lower()
+                if (p_name and p_name in msg_lower) or (p_brand and len(p_brand) > 2 and p_brand in msg_lower) or (p_model and len(p_model) > 3 and p_model in msg_lower):
+                    matching_prod = p
+                    break
+            
+            if matching_prod:
+                product_data = await retrieval_service.get_product_context_data(matching_prod["id"], user_id)
 
         # Build System Prompt & Sources
         if context_type == "product" and product_data.get("product"):
@@ -346,6 +360,14 @@ class AssistantService:
                 portfolio_stats=portfolio_stats,
                 language=user_lang
             )
+            # If a specific product was referenced in global query, include its exact verified sources
+            if product_data.get("product"):
+                prod_sources = source_service.get_sources_for_product(
+                    product=product_data["product"],
+                    warranties=product_data.get("warranties", []),
+                    documents=product_data.get("documents", [])
+                )
+                sources = prod_sources + sources
 
         # Retrieve previous messages for multi-turn conversational transcript
         history_msgs = await conversation_service.get_messages(conversation_id, user_id, limit=8)
@@ -385,13 +407,20 @@ class AssistantService:
 
             # Match source references
             for s in sources:
+                s_title_words = [kw.lower() for kw in s.title.split() if len(kw) > 3]
+                p_brand = (product_data.get("product", {}).get("brand") or "").lower()
+                p_name = (product_data.get("product", {}).get("name") or "").lower()
+
                 if (
-                    any(kw.lower() in ai_reply_text.lower() for kw in s.title.split() if len(kw) > 3)
+                    any(kw in ai_reply_text.lower() for kw in s_title_words)
                     or (s.domain and s.domain.lower() in ai_reply_text.lower())
+                    or (p_brand and p_brand in s.title.lower())
+                    or (p_name and p_name in s.title.lower())
                     or (s.sourceType in ["user_document", "official_manufacturer"] and len(cited_source_refs) < 2)
                 ):
-                    cited_sources_str.append(s.title)
-                    cited_source_refs.append(s.model_dump())
+                    if s.title not in cited_sources_str:
+                        cited_sources_str.append(s.title)
+                        cited_source_refs.append(s.model_dump())
 
             if not cited_source_refs and sources:
                 cited_sources_str = [sources[0].title]
@@ -413,9 +442,26 @@ class AssistantService:
             model_used = "offline-fallback"
             duration_ms = 0.0
 
+            # Tailor cited sources for offline fallback to the relevant product if present
             if sources:
+                for s in sources:
+                    p_brand = (product_data.get("product", {}).get("brand") or "").lower()
+                    p_name = (product_data.get("product", {}).get("name") or "").lower()
+                    if (
+                        (p_brand and p_brand in s.title.lower())
+                        or (p_name and p_name in s.title.lower())
+                        or s.sourceType in ["user_document", "official_manufacturer"]
+                    ):
+                        if s.title not in cited_sources_str:
+                            cited_sources_str.append(s.title)
+                            cited_source_refs.append(s.model_dump())
+                    if len(cited_source_refs) >= 3:
+                        break
+
+            if not cited_source_refs and sources:
                 cited_sources_str = [sources[0].title]
                 cited_source_refs = [sources[0].model_dump()]
+
             actions = [a.model_dump() for a in gen_actions]
 
         # Persist assistant reply
