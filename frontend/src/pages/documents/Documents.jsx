@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   UploadCloud,
@@ -39,13 +40,15 @@ function formatFileSize(bytes) {
 // Helper to pick thumbnail emoji / icon by type or MIME
 function getDocVisual(mimeType, docType) {
   if (mimeType === 'application/pdf') return '📄';
-  if (mimeType.startsWith('image/')) return '🖼️';
+  if (mimeType?.startsWith('image/')) return '🖼️';
+  if (mimeType?.includes('word') || mimeType?.includes('officedocument')) return '📝';
   if (docType === 'Warranty Card' || docType === 'Extended Warranty') return '🛡️';
   if (docType === 'User Manual') return '📘';
   return '📁';
 }
 
 export default function Documents() {
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,10 +95,27 @@ export default function Documents() {
 
   const handleView = async (doc) => {
     try {
-      const objectUrl = await documentsApi.viewFile(doc.id, false);
-      window.open(objectUrl, '_blank');
+      const isWordDoc = doc.mimeType?.includes('word') || 
+                        doc.mimeType?.includes('officedocument') ||
+                        doc.originalFilename?.toLowerCase().endsWith('.docx') || 
+                        doc.originalFilename?.toLowerCase().endsWith('.doc');
+
+      const objectUrl = await documentsApi.viewFile(doc.id, isWordDoc);
+
+      if (isWordDoc) {
+        // Browsers cannot natively render Word XML in a tab; download directly
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = doc.originalFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        // PDF & image files open natively in preview tab
+        window.open(objectUrl, '_blank');
+      }
     } catch (err) {
-      alert(`Could not view file: ${err.message}`);
+      alert(`Could not open document: ${err.message}`);
     }
   };
 
@@ -278,10 +298,22 @@ export default function Documents() {
                 <h4 className="doc-card-title" title={doc.originalFilename}>
                   {doc.originalFilename}
                 </h4>
-                <p className="doc-product-link">
-                  Linked Product:{' '}
-                  <strong>{doc.productName || 'Registered Asset'}</strong>
-                </p>
+                <div className="doc-product-link">
+                  <span>Linked Product:</span>
+                  {doc.productId ? (
+                    <button
+                      type="button"
+                      className="doc-product-link-btn"
+                      onClick={() => navigate(`/products/${doc.productId}`)}
+                      title={`Open ${doc.productName || 'Product'} details`}
+                    >
+                      <span>{doc.productName || 'View Product'}</span>
+                      <ExternalLink size={12} />
+                    </button>
+                  ) : (
+                    <strong>{doc.productName || 'Registered Asset'}</strong>
+                  )}
+                </div>
               </div>
 
               <div className="doc-card-footer">
