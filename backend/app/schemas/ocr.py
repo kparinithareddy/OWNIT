@@ -17,6 +17,14 @@ class OCRExtractedItem(BaseModel):
     serialNumber: Optional[str] = Field(None, description="Detected serial number")
     imei: Optional[str] = Field(None, description="Detected IMEI number")
     warrantyInfo: Optional[str] = Field(None, description="Extracted warranty or guarantee notes")
+    warrantyDuration: Optional[str] = Field(None, description="Duration of warranty e.g. 1 Year")
+    warrantyType: Optional[str] = Field(None, description="Type e.g. Manufacturer Warranty, Comprehensive Warranty")
+    warrantyStartDate: Optional[str] = Field(None, description="Warranty start date in YYYY-MM-DD")
+    warrantyExpiryDate: Optional[str] = Field(None, description="Warranty expiry date in YYYY-MM-DD")
+    warrantyBenefits: Optional[str] = Field(None, description="What is covered")
+    warrantyExclusions: Optional[str] = Field(None, description="What is not covered")
+    warrantyProvider: Optional[str] = Field(None, description="Warranty provider or company")
+    warrantyServiceInfo: Optional[str] = Field(None, description="Customer care or support info")
     confidence: float = Field(0.8, ge=0.0, le=1.0, description="Confidence score")
     confidenceLevel: str = Field("medium", description="'high', 'medium', or 'low'")
     uncertainFields: List[str] = Field(default_factory=list, description="Fields where confidence is low")
@@ -53,6 +61,15 @@ class OCRConfirmItem(BaseModel):
     serialNumber: Optional[str] = Field(None, max_length=100)
     imei: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
+    warrantyInfo: Optional[str] = None
+    warrantyDuration: Optional[str] = None
+    warrantyType: Optional[str] = None
+    warrantyStartDate: Optional[str] = None
+    warrantyExpiryDate: Optional[str] = None
+    warrantyBenefits: Optional[str] = None
+    warrantyExclusions: Optional[str] = None
+    warrantyProvider: Optional[str] = None
+    warrantyServiceInfo: Optional[str] = None
 
 
 class OCRConfirmRequest(BaseModel):
@@ -64,4 +81,5 @@ class OCRConfirmRequest(BaseModel):
 class OCRConfirmResponse(BaseModel):
     createdProducts: List[ProductResponse] = Field(default_factory=list)
     attachedDocuments: List[DocumentResponse] = Field(default_factory=list)
+    registeredWarrantiesCount: int = Field(0, description="Number of warranty components auto-registered")
     message: str = "Products successfully created from receipt."

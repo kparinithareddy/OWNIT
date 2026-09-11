@@ -21,8 +21,10 @@ from app.schemas.ocr import (
     OCRConfirmItem
 )
 from app.schemas.product import ProductResponse
+from app.schemas.warranty import WarrantyCreate
 from app.services.product_service import format_product_doc
 from app.services.document_service import format_doc_response, validate_magic_bytes, sanitize_filename
+from app.services.warranty_service import warranty_service
 
 logger = logging.getLogger("ownit.services.ocr")
 
@@ -349,7 +351,8 @@ class OCRService:
         attached_docs: List[DocumentResponse] = []
         now = datetime.now(timezone.utc)
 
-        # 1. Insert Products
+        # 1. Insert Products and Auto-Register Warranties if detected
+        registered_warranties_count = 0
         for item in payload.items:
             prod_doc = {
                 "userId": user_id,
@@ -369,7 +372,30 @@ class OCRService:
             }
             res = await self.products_collection.insert_one(prod_doc)
             prod_doc["_id"] = res.inserted_id
-            created_products.append(format_product_doc(prod_doc))
+            created_prod = format_product_doc(prod_doc)
+            created_products.append(created_prod)
+
+            # Auto-register warranty component if warranty info was scanned or provided
+            if item.warrantyDuration or item.warrantyType or item.warrantyInfo or item.warrantyExpiryDate:
+                try:
+                    w_create = WarrantyCreate(
+                        productId=created_prod.id,
+                        type=item.warrantyType or "Manufacturer Warranty",
+                        provider=item.warrantyProvider or item.brand or item.seller or "Manufacturer",
+                        duration=item.warrantyDuration or "1 Year",
+                        startDate=item.warrantyStartDate or item.purchaseDate or now.strftime("%Y-%m-%d"),
+                        expiryDate=item.warrantyExpiryDate,
+                        benefits=item.warrantyBenefits or "Manufacturing defects and hardware failures under normal use; Complimentary software updates; Authorized service and repair support.",
+                        exclusions=item.warrantyExclusions or "Physical or accidental damage (drops, liquid damage); Damage caused by unauthorized repairs or modifications; Software issues due to third-party apps or misuse.",
+                        conditions="Valid with original purchase invoice and intact serial/IMEI number.",
+                        claimProcedure="Visit any official brand authorized service center or contact customer support.",
+                        serviceInformation=item.warrantyServiceInfo or "Official brand authorized customer service center"
+                    )
+                    await warranty_service.create_warranty(user_id=user_id, data=w_create)
+                    registered_warranties_count += 1
+                    logger.info(f"Auto-registered warranty component for scanned product {created_prod.id} ({created_prod.name})")
+                except Exception as w_exc:
+                    logger.warning(f"Could not auto-register warranty for {created_prod.id}: {w_exc}")
 
         # 2. If tempFileToken is present, move temp receipt file into permanent documents storage
         if payload.tempFileToken and created_products:
@@ -423,10 +449,17 @@ class OCRService:
                             logger.warning(f"Could not finalize temp receipt document attachment: {exc}")
 
         item_count = len(created_products)
+        msg = f"Successfully created {item_count} product{'s' if item_count > 1 else ''}"
+        if registered_warranties_count > 0:
+            msg += f" and registered {registered_warranties_count} active warranty policy{'s' if registered_warranties_count > 1 else ''}."
+        else:
+            msg += " from receipt."
+
         return OCRConfirmResponse(
             createdProducts=created_products,
             attachedDocuments=attached_docs,
-            message=f"Successfully created {item_count} product{'s' if item_count > 1 else ''} from receipt."
+            registeredWarrantiesCount=registered_warranties_count,
+            message=msg
         )
 
 

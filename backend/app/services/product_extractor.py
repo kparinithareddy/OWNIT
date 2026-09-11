@@ -165,13 +165,127 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                     pass
         return None
 
+    @classmethod
+    def extract_warranty_details(cls, text: str) -> Dict[str, Any]:
+        """Extracts comprehensive warranty terms, duration, dates, benefits, and exclusions from OCR text."""
+        w_period_m = re.search(r"Warranty\s*Period\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
+        if w_period_m:
+            w_period = re.split(r"(?:Galaxy|\n|$)", w_period_m.group(1))[0].strip()
+        else:
+            dur_m = re.search(r"((?:\d+|one|two|three|1|2|3|4|5)\s*(?:year|yr|years|month|months)(?:\s*\(\d+\s*months?\))?)", text, re.IGNORECASE)
+            w_period = dur_m.group(1).strip() if dur_m else None
+
+        w_type_m = re.search(r"Warranty\s*Type\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
+        if w_type_m:
+            w_type = re.split(r"(?:Galaxy|\n|$)", w_type_m.group(1))[0].strip()
+            if w_type.lower().endswith("warrant"):
+                w_type += "y"
+        else:
+            w_type = "Manufacturer Warranty" if w_period else None
+
+        def parse_date(s: Optional[str]) -> Optional[str]:
+            if not s:
+                return None
+            word_matches = re.findall(r"\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:20)?\d{2})\b", s, re.IGNORECASE)
+            for m in word_matches:
+                for fmt in ("%d %b %Y", "%d %B %Y", "%d %b %y"):
+                    try:
+                        return datetime.strptime(m.strip(), fmt).strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+            iso_matches = re.findall(r"\b(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2})\b", s)
+            if iso_matches:
+                parts = re.split(r"[-/.]", iso_matches[0])
+                return datetime(int(parts[0]), int(parts[1]), int(parts[2])).strftime("%Y-%m-%d")
+            return None
+
+        w_start_m = re.search(r"(?:Warranty\s*Start\s*Date|Wanenty\s*sat\s*bate|Start\s*Date)\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
+        w_start = parse_date(w_start_m.group(1)) if w_start_m else None
+
+        w_exp_m = re.search(r"(?:Warranty\s*Expiry\s*Date|Expiry\s*Date)\s*[:=\-\s]*([^\n\r]+)", text, re.IGNORECASE)
+        w_exp = parse_date(w_exp_m.group(1)) if w_exp_m else None
+
+        # Benefits
+        benefits = []
+        b_matches = re.findall(r"(?:Manufacturing\s*defects\s*and\s*hardware\s*failures[^\n\r;.]*|Complimentary\s*software\s*updates|Authorized\s*service\s*and\s*repair\s*support)", text, re.IGNORECASE)
+        for b in b_matches:
+            b_clean = b.strip(" .•-\t\r\n")
+            if b_clean and b_clean not in benefits:
+                benefits.append(b_clean)
+
+        # Exclusions
+        exclusions = []
+        e_matches = re.findall(r"(?:Physical\s*or\s*accidental\s*damage[^\n\r;.]*|Damage\s*caused\s*by\s*unauthorized\s*repairs[^\n\r;.]*|Wear\s*and\s*tear\s*of\s*accessories[^\n\r;.]*|Software\s*issues\s*due\s*to\s*third-party\s*apps[^\n\r;.]*)", text, re.IGNORECASE)
+        for e in e_matches:
+            e_clean = e.strip(" .•-\t\r\n")
+            if e_clean and e_clean not in exclusions:
+                exclusions.append(e_clean)
+
+        care_m = re.search(r"(?:Customer\s*Care|Helpline|Toll\s*Free)\s*[:=\-]?\s*([0-9\s()\-TollFree]+)", text, re.IGNORECASE)
+        service_info = care_m.group(0).strip() if care_m else None
+
+        summary_parts = []
+        if w_period:
+            summary_parts.append(w_period)
+        if w_type:
+            summary_parts.append(w_type)
+        if w_exp:
+            summary_parts.append(f"(Valid until {w_exp})")
+        warranty_summary = " ".join(summary_parts) if summary_parts else None
+
+        return {
+            "warrantyInfo": warranty_summary,
+            "warrantyDuration": w_period,
+            "warrantyType": w_type or "Manufacturer Warranty",
+            "warrantyStartDate": w_start,
+            "warrantyExpiryDate": w_exp,
+            "warrantyBenefits": "; ".join(benefits) if benefits else None,
+            "warrantyExclusions": "; ".join(exclusions) if exclusions else None,
+            "warrantyServiceInfo": service_info
+        }
+
     def extract_products(self, raw_text: str, doc_metadata: Dict[str, Any]) -> List[OCRExtractedItem]:
         seller = doc_metadata.get("seller")
-        purchase_date = doc_metadata.get("invoiceDate") or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if not seller:
+            store_m = re.search(r"(?:Store|Seller|Merchant|Sold\s*By)\s*[:=\-]\s*([^\n\r]+)", raw_text, re.IGNORECASE)
+            if store_m:
+                cand_store = store_m.group(1).strip()
+                cand_store = re.sub(r"\s+(?:Purchase\s*Date|Invoice|Order|Date|GSTIN).*", "", cand_store, flags=re.IGNORECASE).strip()
+                if len(cand_store) > 2:
+                    seller = cand_store
+
         total_amount = doc_metadata.get("totalAmount")
+        if not total_amount:
+            price_m = re.search(r"(?:Total\s*Amount|Grand\s*Total|Net\s*Amount)[^\d\n\r]*([\d,]+(?:\.\d{2})?)", raw_text, re.IGNORECASE)
+            if price_m:
+                try:
+                    total_amount = float(price_m.group(1).replace(",", ""))
+                except Exception:
+                    pass
+
+        purchase_date = doc_metadata.get("invoiceDate")
+        if not purchase_date:
+            date_m = re.search(r"(?:Purchase\s*Date|Invoice\s*Date|Date)\s*[:=\-]\s*([^\n\r]+)", raw_text, re.IGNORECASE)
+            if date_m:
+                # helper parse date
+                word_matches = re.findall(r"\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:20)?\d{2})\b", date_m.group(1), re.IGNORECASE)
+                if word_matches:
+                    for fmt in ("%d %b %Y", "%d %B %Y", "%d %b %y"):
+                        try:
+                            purchase_date = datetime.strptime(word_matches[0].strip(), fmt).strftime("%Y-%m-%d")
+                            break
+                        except Exception:
+                            pass
+        if not purchase_date:
+            purchase_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
         serial_no = doc_metadata.get("serialNumber")
         imei = doc_metadata.get("imei")
-        warranty_info = doc_metadata.get("warrantyInfo")
+        
+        # Extract warranty terms
+        w_data = self.extract_warranty_details(raw_text)
+        if not w_data.get("warrantyStartDate"):
+            w_data["warrantyStartDate"] = purchase_date
 
         # 1. First check if document has explicit labeled product key-value pairs (e.g. Product Name : ...)
         explicit_name_m = re.search(
@@ -208,7 +322,15 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                     seller=seller,
                     serialNumber=serial,
                     imei=extracted_imei,
-                    warrantyInfo=warranty_info,
+                    warrantyInfo=w_data.get("warrantyInfo"),
+                    warrantyDuration=w_data.get("warrantyDuration"),
+                    warrantyType=w_data.get("warrantyType"),
+                    warrantyStartDate=w_data.get("warrantyStartDate"),
+                    warrantyExpiryDate=w_data.get("warrantyExpiryDate"),
+                    warrantyBenefits=w_data.get("warrantyBenefits"),
+                    warrantyExclusions=w_data.get("warrantyExclusions"),
+                    warrantyProvider=brand or seller or "Manufacturer",
+                    warrantyServiceInfo=w_data.get("warrantyServiceInfo"),
                     confidence=0.92,
                     confidenceLevel="high",
                     uncertainFields=[]
@@ -289,7 +411,15 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                     seller=seller,
                     serialNumber=serial_no if len(item_lines) == 1 else None,
                     imei=imei if (category == "Mobile" and len(item_lines) == 1) else None,
-                    warrantyInfo=warranty_info,
+                    warrantyInfo=w_data.get("warrantyInfo"),
+                    warrantyDuration=w_data.get("warrantyDuration"),
+                    warrantyType=w_data.get("warrantyType"),
+                    warrantyStartDate=w_data.get("warrantyStartDate"),
+                    warrantyExpiryDate=w_data.get("warrantyExpiryDate"),
+                    warrantyBenefits=w_data.get("warrantyBenefits"),
+                    warrantyExclusions=w_data.get("warrantyExclusions"),
+                    warrantyProvider=brand or seller or "Manufacturer",
+                    warrantyServiceInfo=w_data.get("warrantyServiceInfo"),
                     confidence=round(confidence, 2),
                     confidenceLevel=conf_level,
                     uncertainFields=uncertain_fields
@@ -328,7 +458,15 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                 seller=seller,
                 serialNumber=serial_no,
                 imei=imei,
-                warrantyInfo=warranty_info,
+                warrantyInfo=w_data.get("warrantyInfo"),
+                warrantyDuration=w_data.get("warrantyDuration"),
+                warrantyType=w_data.get("warrantyType"),
+                warrantyStartDate=w_data.get("warrantyStartDate"),
+                warrantyExpiryDate=w_data.get("warrantyExpiryDate"),
+                warrantyBenefits=w_data.get("warrantyBenefits"),
+                warrantyExclusions=w_data.get("warrantyExclusions"),
+                warrantyProvider=brand or seller or "Manufacturer",
+                warrantyServiceInfo=w_data.get("warrantyServiceInfo"),
                 confidence=round(confidence, 2),
                 confidenceLevel=conf_level,
                 uncertainFields=uncertain_fields

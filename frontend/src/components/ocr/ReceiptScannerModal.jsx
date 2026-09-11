@@ -259,7 +259,16 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
         seller: it.seller ? it.seller.trim() : null,
         serialNumber: it.serialNumber ? it.serialNumber.trim() : null,
         imei: it.imei ? it.imei.trim() : null,
-        notes: it.notes ? it.notes.trim() : null
+        notes: it.notes ? it.notes.trim() : null,
+        warrantyInfo: it.warrantyInfo || null,
+        warrantyDuration: it.warrantyDuration || null,
+        warrantyType: it.warrantyType || null,
+        warrantyStartDate: it.warrantyStartDate || null,
+        warrantyExpiryDate: it.warrantyExpiryDate || null,
+        warrantyBenefits: it.warrantyBenefits || null,
+        warrantyExclusions: it.warrantyExclusions || null,
+        warrantyProvider: it.warrantyProvider || null,
+        warrantyServiceInfo: it.warrantyServiceInfo || null
       })),
       tempFileToken: attachDocument && scanResult?.tempFileToken ? scanResult.tempFileToken : null,
       documentType: 'Purchase Bill'
@@ -539,6 +548,14 @@ export default function ReceiptScannerModal({ isOpen, onClose, onProductsSaved }
                             <div className="meta-pill">
                               <span className="meta-k">S/N:</span>
                               <span className="meta-v">{item.serialNumber}</span>
+                            </div>
+                          )}
+                          {(item.warrantyInfo || item.warrantyDuration) && (
+                            <div className="meta-pill" style={{ backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
+                              <span className="meta-k" style={{ color: '#047857', fontWeight: 600 }}>🛡️ Warranty:</span>
+                              <span className="meta-v" style={{ fontWeight: 600 }}>
+                                {item.warrantyInfo || `${item.warrantyDuration || '1 Year'} ${item.warrantyType || 'Manufacturer Warranty'}`}
+                              </span>
                             </div>
                           )}
                         </div>
