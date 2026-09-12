@@ -102,3 +102,27 @@ async def test_washing_machine_accessories(washing_machine_product):
     assert len(recs) > 0
     categories = {r.category.lower() for r in recs}
     assert "stand" in categories or "filter" in categories or "cover" in categories
+
+
+@pytest.mark.anyio
+async def test_all_accessories_have_safe_working_source_urls(samsung_tv_product, washing_machine_product):
+    engine = VerifiedCatalogAccessoryService()
+    
+    # Test for TV
+    recs_tv = await engine.get_recommendations(product=samsung_tv_product)
+    for r in recs_tv:
+        assert r.sourceUrl is not None, f"Item {r.id} missing sourceUrl"
+        assert r.sourceUrl.startswith("https://"), f"Item {r.id} sourceUrl must be https: {r.sourceUrl}"
+        assert len(r.sourceUrl) > len("https://www.amazon.in/"), f"Item {r.id} cannot be bare domain: {r.sourceUrl}"
+        assert r.sourceUrl not in [
+            "https://www.amazon.in", "https://www.croma.com", "https://www.reliancedigital.in",
+            "https://www.anker.com", "https://www.hp.com/in", "https://www.dyson.in"
+        ], f"Item {r.id} has bare domain sourceUrl: {r.sourceUrl}"
+
+    # Test for Washing Machine
+    recs_wm = await engine.get_recommendations(product=washing_machine_product)
+    for r in recs_wm:
+        assert r.sourceUrl is not None, f"Item {r.id} missing sourceUrl"
+        assert r.sourceUrl.startswith("https://")
+        assert len(r.sourceUrl) > len("https://www.amazon.in/")
+

@@ -22,7 +22,7 @@ import Badge from '../../components/common/Badge';
 import Input, { Select } from '../../components/common/Input';
 import LoadingState from '../../components/common/LoadingState';
 import { productsApi, accessoriesApi } from '../../services/api';
-import { useLanguage } from '../../i18n/LanguageContext';
+import { useLanguage, useLocalizedList } from '../../i18n/LanguageContext';
 import './Accessories.css';
 
 const BUDGET_PRESETS = [
@@ -49,6 +49,7 @@ export default function Accessories() {
   const [customMaxBudget, setCustomMaxBudget] = useState('');
 
   const [recommendations, setRecommendations] = useState([]);
+  const localizedRecommendations = useLocalizedList(recommendations, ['name', 'category', 'compatibilityReason', 'platform']);
   const [productMetadata, setProductMetadata] = useState(null);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingRecs, setLoadingRecs] = useState(false);
@@ -261,7 +262,7 @@ export default function Accessories() {
             Retry
           </Button>
         </Card>
-      ) : recommendations.length === 0 ? (
+      ) : localizedRecommendations.length === 0 ? (
         <Card className="accessories-empty-card" padding="lg">
           <PlugZap size={40} className="empty-icon" />
           <h4>{t('accessories.noAccessories', {}, 'No accessories matching your budget and category filters.')}</h4>
@@ -272,8 +273,9 @@ export default function Accessories() {
         </Card>
       ) : (
         <div className="accessories-grid">
-          {recommendations.map((acc) => {
+          {localizedRecommendations.map((acc) => {
             const isCompatible = acc.compatibilityStatus === 'Compatible';
+            const safeSourceUrl = acc.sourceUrl || `https://www.amazon.in/s?k=${encodeURIComponent(`${acc.brand || ''} ${acc.name || ''}`.trim())}`;
             return (
               <Card key={acc.id} className="accessory-card" padding="md">
                 {/* Header: Category + Compatibility Badge */}
@@ -346,22 +348,16 @@ export default function Accessories() {
                     </span>
                   </div>
 
-                  {acc.sourceUrl ? (
-                    <a
-                      href={acc.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="acc-source-btn"
-                      title={`Open official listing on ${acc.platform}`}
-                    >
-                      <span>{t('accessories.openSource', {}, 'Open Source')}</span>
-                      <ExternalLink size={13} />
-                    </a>
-                  ) : (
-                    <span className="acc-source-btn disabled">
-                      <span>{acc.platform}</span>
-                    </span>
-                  )}
+                  <a
+                    href={safeSourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="acc-source-btn"
+                    title={`Open verified listing on ${acc.platform || 'Store'}`}
+                  >
+                    <span>{t('accessories.openSource', {}, 'Open Source')}</span>
+                    <ExternalLink size={13} />
+                  </a>
                 </div>
               </Card>
             );

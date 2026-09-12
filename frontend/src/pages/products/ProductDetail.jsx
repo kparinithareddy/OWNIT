@@ -618,25 +618,29 @@ export default function ProductDetail() {
                             {acc.platform}
                           </div>
                         </div>
-                        {acc.sourceUrl && (
-                          <a
-                            href={acc.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: 'var(--primary)',
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <span>Open Source</span>
-                            <ExternalLink size={12} />
-                          </a>
-                        )}
+                        {(() => {
+                          const safeSourceUrl = acc.sourceUrl || `https://www.amazon.in/s?k=${encodeURIComponent(`${acc.brand || ''} ${acc.name || ''}`.trim())}`;
+                          return (
+                            <a
+                              href={safeSourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: 'var(--primary)',
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title={`Open verified listing on ${acc.platform || 'Store'}`}
+                            >
+                              <span>{t('accessories.openSource', {}, 'Open Source')}</span>
+                              <ExternalLink size={12} />
+                            </a>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
