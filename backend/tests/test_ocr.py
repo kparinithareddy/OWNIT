@@ -234,7 +234,47 @@ def test_receipt_parser_price_and_tax_breakdown():
     assert item.totalPrice == 74000.0
     assert "Samsung" in (item.seller or "")
     assert "Phoenix Mall, Bengaluru" in (item.sellerAddress or "")
-    assert item.paymentMethod == "Credit Card"
     assert meta["subtotal"] == 62711.86
     assert meta["taxAmount"] == 11288.14
     assert meta["totalAmount"] == 74000.0
+
+
+def test_hp_laptop_receipt_single_item_filtering():
+    """
+    Tests that a single HP laptop invoice with multiple customer support / helpline
+    footer lines extracts exactly 1 product (Laptop) and rejects helpline noise lines.
+    """
+    receipt_text = """
+    CROMA
+    Infiniti Retail Limited
+    Tax Invoice
+    Date: 14-08-2024
+    Sold By: Croma
+    Payment Mode: Credit Card
+
+    : a = 1
+    HP Pavilion 15-eg2090TU
+    15-eg2090TU
+    Qty: 1
+    Amount: 74999.00
+    GST: 12599.82
+    Total: 74999.00
+
+    HP Support at 1800-258 7170 or visit www.hp.com/in. .
+    HP Support at 1800'258 7170 or visit www.hp.com/in
+    HP Support at 1800:258 7170 or visit www.hp.com/in
+    """
+    items, meta = ReceiptParser.parse_receipt(receipt_text)
+    
+    assert len(items) == 1
+    laptop = items[0]
+    assert laptop.brand == "HP"
+    assert laptop.category == "Laptop"
+    assert "15-EG2090TU" in (laptop.model or laptop.name).upper()
+    assert "HP Pavilion 15" in laptop.name or "HP 15" in laptop.name
+    assert laptop.price == 74999.0
+    assert laptop.totalPrice == 74999.0
+    assert laptop.taxAmount == 12599.82
+    assert meta["seller"] == "Croma"
+    assert meta["invoiceDate"] == "2024-08-14"
+

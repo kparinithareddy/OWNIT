@@ -120,14 +120,33 @@ class OCREngine:
             # Score each pass by density of key receipt indicators and alphanumeric text
             def score_pass(text: str) -> int:
                 score = len(text)
-                anchors = ["invoice", "tax", "date", "serial", "model", "brand", "total", "warranty", "amount", "gst", "price", "subtotal", "receipt"]
+                anchors = ["invoice", "tax", "date", "serial", "model", "brand", "total", "warranty", "amount", "gst", "price", "subtotal", "receipt", "electronics", "apple", "samsung"]
                 for a in anchors:
                     if re.search(r"\b" + a + r"\b", text, re.IGNORECASE):
                         score += 150
                 return score
 
             best_text = max(passes, key=score_pass)
-            return best_text.strip(), metadata
+
+            # Aggregate unique informative lines from other passes
+            combined_lines = [l.strip() for l in best_text.split("\n") if l.strip()]
+            seen_normalized = {''.join(c.lower() for c in l if c.isalnum()) for l in combined_lines}
+
+            for p in passes:
+                if p == best_text:
+                    continue
+                for l in p.split("\n"):
+                    l_str = l.strip()
+                    if len(l_str) >= 4:
+                        norm = ''.join(c.lower() for c in l_str if c.isalnum())
+                        if norm and norm not in seen_normalized:
+                            # Only include lines with meaningful alphanumeric tokens or numbers
+                            if re.search(r"[A-Za-z0-9]", l_str) and not re.match(r"^[\W_]+$", l_str):
+                                seen_normalized.add(norm)
+                                combined_lines.append(l_str)
+
+            final_text = "\n".join(combined_lines).strip()
+            return final_text, metadata
         except Exception as exc:
             logger.error(f"Failed to extract text from image: {exc}")
             raise

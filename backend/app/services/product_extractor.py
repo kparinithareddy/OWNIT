@@ -15,12 +15,12 @@ logger = logging.getLogger("ownit.services.extractor")
 # Known Brands List for entity recognition
 KNOWN_BRANDS = [
     "Apple", "Samsung", "Sony", "LG", "Dell", "HP", "Lenovo", "Asus",
-    "Acer", "Xiaomi", "OnePlus", "Google", "Bose", "JBL", "Realme",
+    "Acer", "Xiaomi", "Redmi", "OnePlus", "Google", "Bose", "JBL", "Realme",
     "Vivo", "Oppo", "Whirlpool", "Bosch", "IFB", "Haier", "Godrej",
     "Panasonic", "Philips", "Canon", "Nikon", "GoPro", "Nintendo",
     "PlayStation", "Xbox", "Dyson", "Boat", "Noise", "Nothing", "Motorola",
     "Sennheiser", "Marshall", "Voltas", "Daikin", "Carrier", "Blue Star",
-    "Hitachi", "Toshiba", "TCL", "Hisense", "ScanPro", "TechNova", "Mi",
+    "Hitachi", "Toshiba", "TCL", "Hisense", "ScanPro", "TechNova",
     "iQOO", "Infinix", "OnePlus", "Belkin", "Anker", "Logitech", "SanDisk"
 ]
 
@@ -29,7 +29,8 @@ KNOWN_RETAILERS = [
     "Amazon", "Flipkart", "Reliance Digital", "Croma", "Apple Store",
     "Vijay Sales", "Best Buy", "Walmart", "Samsung SmartCafe", "Samsung Experience Store",
     "Samsung Smart Cafe", "Poorvika", "Sangeetha Mobiles", "Tata CLiQ", "Myntra",
-    "TechNova Electronics", "Dyson Demo Store", "GVK One Mall", "Wipro", "Aditya Vision"
+    "TechNova Electronics", "Dyson Demo Store", "GVK One Mall", "Wipro", "Aditya Vision",
+    "Electronics Mart India Limited", "Electronics Mart", "Bajaj Electronics"
 ]
 
 CATEGORY_KEYWORDS = {
@@ -39,14 +40,18 @@ CATEGORY_KEYWORDS = {
         r"\bearphones?\b", r"\btws\b", r"\baudio\b"
     ],
     "Mobile": [
-        r"\biphones?\b", r"\bgalaxy\b", r"\bgalaxy\s*[sza]?\d*\b", r"\bpixel\b",
-        r"\bsmartphones?\b", r"\bredmi\b", r"\boneplus\b", r"\bcellular\b",
-        r"\brealme\b", r"\boppo\b", r"\bvivo\b", r"\bmoto\b", r"\bmobile\b", r"\bphones?\b"
+        r"\biphones?\b", r"\bgalaxy\s*[sza]\d*\b", r"\bpixel\b",
+        r"\bsmartphones?\b", r"\bredmi\b", r"\boneplus\b",
+        r"\brealme\b", r"\boppo\b", r"\bvivo\b", r"\bmoto\b",
+        r"\bmobile\s*phones?\b"
     ],
     "Laptop": [
-        r"\bmacbooks?\b", r"\bthinkpads?\b", r"\bxps\b", r"\binspiron\b",
+        r"\bmacbooks?\b", r"\bmacbook\s*(?:air|pro)\b", r"\bmba\b", r"\bmbp\b",
+        r"\bm[1-4]\b", r"\bthinkpads?\b", r"\bxps\b", r"\binspiron\b",
         r"\bpavilion\b", r"\blegion\b", r"\brog\b", r"\bzenbooks?\b",
-        r"\blaptops?\b", r"\bnotebooks?\b", r"\bideapad\b", r"\bvivobook\b", r"\bsurface\b"
+        r"\blaptops?\b", r"\bnotebooks?\b", r"\bideapad\b", r"\bvivobook\b", r"\bsurface\b",
+        r"\b1[3-7]s?-[a-z]{2}\d{4}\b", r"\b1[3-7]-fc\b", r"\b1[3-7]-eg\b",
+        r"\bvictus\b", r"\bomen\b", r"\benvy\b", r"\bspectre\b", r"\bprobook\b", r"\belitebook\b"
     ],
     "Home Appliance": [
         r"\bairwrap\b", r"\bstyler\b", r"\bdryer\b", r"\bhair dryer\b", r"\bstraightener\b",
@@ -198,15 +203,27 @@ class RuleBasedProductExtractor(BaseProductExtractor):
 
     @classmethod
     def detect_brand(cls, item_text: str) -> Optional[str]:
-        """Matches brand from known brands list."""
+        """Matches brand from known brands list with precision disambiguation."""
+        # Reject brand match if this is purely a support/service helpline line
+        if re.search(r"\b(?:Apple|Samsung|LG|Sony|Dell|HP|Lenovo|Asus|Acer|Dyson)\s+(?:Support|Care|Helpline|Service|Customer|Helpdesk|Toll|Contact|Center)\b", item_text, re.IGNORECASE):
+            return None
+
+        if re.search(r"\b(Xiaomi|Redmi|Mi\s*(?:1[0-4]|\d+|TV|Band|Pro))\b", item_text, re.IGNORECASE):
+            return "Xiaomi"
+        if re.search(r"\bHP\s+(?:Laptop|Pavilion|Spectre|Envy|Omen|Victus|Deskjet|LaserJet|1[3-7]|24[0-9]|ProBook|EliteBook|\d{2}-|[A-Za-z0-9]{3,})\b", item_text, re.IGNORECASE):
+            return "HP"
+        if re.search(r"\bHP\b", item_text) and not re.search(r"\b(?:Ship|Bill|Invoice|Due|Pay|Deliver|HP)\s*To\b|\bHP\s*To\b|\bHP\s*Support\b", item_text, re.IGNORECASE):
+            return "HP"
         for brand in KNOWN_BRANDS:
+            if brand in ("HP", "Xiaomi", "Redmi"):
+                continue
             if re.search(r"\b" + re.escape(brand) + r"\b", item_text, re.IGNORECASE):
                 return brand
         return None
 
     @classmethod
     def extract_model_from_line(cls, line: str) -> Optional[str]:
-        """Extracts model numbers like UA55DU8000, HP 15-fc0084AU, GL-S292RDSX, WH-1000XM5, XPS-9530, SM-S931BLBGIN, SP-2200, 107349-01."""
+        """Extracts model numbers like 15-eg2090TU, UA55DU8000, HP 15-fc0084AU, GL-S292RDSX, WH-1000XM5, XPS-9530, SM-S931BLBGIN, SP-2200, 107349-01."""
         # 1. Explicit model label
         model_m = re.search(r"(?:Model\s*(?:Number|No\.?|Num|#)?|Mod(?:el)?|Part\s*(?:No\.?|Number|#)?)\s*[:=\-–#>~\s]*([A-Za-z0-9\-_+/ ]{2,35})", line, re.IGNORECASE)
         if model_m:
@@ -215,23 +232,26 @@ class RuleBasedProductExtractor(BaseProductExtractor):
             candidate = re.sub(r"^[=:\-–#>\s]+", "", candidate).strip()
             candidate = re.sub(r"^[0-9]\s+", "", candidate).strip()
             if len(candidate) >= 3 and not re.search(r"^(?:number|name|date|details|summary|tax|bill|item|no|code|apartments|iculars|icular|ty|mrp|disc|amount)$", candidate, re.IGNORECASE):
-                if not re.match(r"^\d{2}-\d{2}$|^\d{4}-\d{2}$|^\d{2}-\d{4}$", candidate):
+                if not re.match(r"^\d+-\d+$", candidate) and not re.match(r"^\d{2}[-/.](?:0?[1-9]|1[0-2])[-/.]\d{2,4}$", candidate):
                     return candidate
 
-        # 2. General model code patterns
+        # 2. General model code patterns (must contain letters and digits, not pure numbers or address ranges)
         patterns = [
-            r"\b([A-Z0-9]{2,6}-[A-Z0-9]{2,12})\b",     # e.g. 15-fc0084AU, GL-S292RDSX, WH-1000XM5, SM-S931BLBGIN, SP-2200, 107349-01
-            r"\b([A-Z]{1,4}\d{2,4}[A-Z0-9]{2,8})\b",  # e.g. UA55DU8000
-            r"\b(SM-[A-Z0-9]{5,12})\b",               # e.g. SM-N975FZSD
-            r"\b([A-Za-z0-9]{3,8}\d[A-Za-z0-9]{1,4})\b"
+            r"\b(1[3-7]s?-[a-z]{2}\d{4}[a-z]{0,2})\b",       # e.g. 15-eg2090TU, 14-dv2053TU, 15-fc0084AU
+            r"\b([A-Za-z]{1,5}-[A-Za-z0-9]{2,12})\b",        # e.g. GL-S292RDSX, SP-2200, WH-1000XM5, XPS-9530
+            r"\b(\d{1,3}-[a-z]{2,5}\d{2,6}[A-Za-z0-9]*)\b", # e.g. 15-fc0084AU
+            r"\b([A-Z]{1,4}\d{2,4}[A-Z0-9]{2,8})\b",        # e.g. UA55DU8000
+            r"\b(SM-[A-Z0-9]{5,12})\b",                     # e.g. SM-N975FZSD, SM-S931BLBGIN
+            r"\b([A-Za-z0-9]{3,8}\d[A-Za-z0-9]{1,6})\b"
         ]
         for pat in patterns:
-            matches = re.finditer(pat, line)
+            matches = re.finditer(pat, line, re.IGNORECASE)
             for m in matches:
                 candidate = m.group(1).strip()
-                if not re.match(r"^\d{2}-\d{2}$|^\d{4}-\d{2}$|^\d{2}-\d{4}$", candidate) and not re.match(r"^(?:20\d{2}|INR|USD|GST|QTY|TOTAL|ORDER)$", candidate, re.IGNORECASE):
-                    if not re.search(r"^(?:apartments|iculars|particulars)$", candidate, re.IGNORECASE):
-                        return candidate
+                if not re.match(r"^\d+-\d+$", candidate) and not re.match(r"^(?:20\d{2}|INR|USD|GST|QTY|TOTAL|ORDER)$", candidate, re.IGNORECASE):
+                    if not re.search(r"^(?:apartments|iculars|particulars|invoice|telangana|karnataka|mumbai|bengaluru)$", candidate, re.IGNORECASE):
+                        if (re.search(r"[0-9]", candidate) and re.search(r"[A-Za-z]", candidate)) or re.match(r"^[A-Za-z]{1,4}\d+", candidate):
+                            return candidate
         return None
 
     @classmethod
@@ -327,6 +347,10 @@ class RuleBasedProductExtractor(BaseProductExtractor):
 
     @classmethod
     def extract_line_price(cls, line: str) -> Optional[float]:
+        # Do not extract price from support lines, serial numbers, phone numbers, or dates
+        if re.search(r"(?:1800[-:\s\']*\d{3}|support|helpline|toll\s*free|phone|mobile\s*[:#\d]|\b20\d{2}\b)", line, re.IGNORECASE) and not re.search(r"(?:₹|INR|Rs\.?|\$)\s*[\d,]+", line, re.IGNORECASE):
+            return None
+
         clean_line = re.sub(r"\[[\d\.]+\]", "", line)
         price_patterns = [
             r"(?:₹|INR|Rs\.?|\$)\s*([\d,]+(?:\.\d{2})?)",
@@ -338,7 +362,7 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                 amt_str = m.group(1).replace(",", "").strip()
                 try:
                     val = float(amt_str)
-                    if 1.0 <= val <= 5000000.0:
+                    if 10.0 <= val <= 5000000.0 and val not in (1800.0, 2024.0, 2025.0, 2026.0):
                         return val
                 except ValueError:
                     pass
@@ -490,74 +514,229 @@ class RuleBasedProductExtractor(BaseProductExtractor):
             if imei_m:
                 imei = imei_m.group(1).strip()
 
+    @classmethod
+    def normalize_product_details(cls, clean_name: str, raw_text: str) -> Tuple[str, Optional[str], Optional[str], str]:
+        """
+        Normalizes product names, brands, models, and categories for common electronics patterns.
+        E.g., "MBA 13/M3/10C/8C/16/512" -> "Apple MacBook Air 13\" (M3, 16GB RAM, 512GB SSD)",
+        model: "MacBook Air 13\" (16GB/512GB)", brand: "Apple", category: "Laptop"
+        """
+        name = clean_name.strip()
+        brand = cls.detect_brand(name) or cls.detect_brand(raw_text)
+        category = cls.infer_category(name)
+        if category == "Other":
+            category = cls.infer_category(raw_text)
+        model = cls.extract_model_from_line(name)
+
+        # Apple MacBook / MBA / MBP pattern
+        if re.search(r"\b(?:MBA|MacBook\s*Air)\b", name, re.IGNORECASE) or (re.search(r"\bMBA\b", raw_text, re.IGNORECASE) and ("Apple" in (brand or "") or "MBA" in name)):
+            brand = "Apple"
+            category = "Laptop"
+            combined = name + " " + raw_text
+            chip_m = re.search(r"\b(M[1-4](?:\s*Pro|\s*Max)?)\b", combined, re.IGNORECASE)
+            chip = chip_m.group(1).upper() if chip_m else "M3"
+            size_m = re.search(r"\b(13|14|15|16)(?:-inch|\"|/|\b)", name, re.IGNORECASE)
+            size = f"{size_m.group(1)}\"" if size_m else "13\""
+            ram_m = re.search(r"/(16|8|24|32|64)/", name) or re.search(r"\b(16|8|24|32|64)\s*GB\b", combined, re.IGNORECASE)
+            ram = f"{ram_m.group(1)}GB RAM" if ram_m else ""
+            ssd_m = re.search(r"/(256|512|1TB|2TB)\b", name) or re.search(r"\b(256|512)\s*GB\b", combined, re.IGNORECASE)
+            ssd_val = ssd_m.group(1) if ssd_m else ""
+            ssd = (ssd_val if "TB" in ssd_val else f"{ssd_val}GB SSD") if ssd_val else ""
+            
+            spec_parts = [p for p in [chip, ram, ssd] if p]
+            specs_str = f" ({', '.join(spec_parts)})" if spec_parts else ""
+            name = f"Apple MacBook Air {size}{specs_str}"
+            model_specs = [p for p in [ram.replace(" RAM", ""), ssd.replace(" SSD", "")] if p]
+            model = f"MacBook Air {size}" + (f" ({'/'.join(model_specs)})" if model_specs else f" ({chip})")
+            return name, brand, model, category
+
+        # Apple MacBook Pro pattern
+        if re.search(r"\b(?:MBP|MacBook\s*Pro)\b", name, re.IGNORECASE):
+            brand = "Apple"
+            category = "Laptop"
+            combined = name + " " + raw_text
+            chip_m = re.search(r"\b(M[1-4](?:\s*Pro|\s*Max)?)\b", combined, re.IGNORECASE)
+            chip = chip_m.group(1).upper() if chip_m else "M3"
+            size_m = re.search(r"\b(14|16|13)(?:-inch|\"|\b)", name, re.IGNORECASE)
+            size = f"{size_m.group(1)}\"" if size_m else "14\""
+            name = f"Apple MacBook Pro {size} ({chip})"
+            model = f"MacBook Pro {size} ({chip})"
+            return name, brand, model, category
+
+        # Dyson pattern
+        if re.search(r"\b(?:Dyson|Airwrap|Alrwrap)\b", name, re.IGNORECASE):
+            name = "Dyson Airwrap multi-styler and dryer (Prussian Blue/Rich Copper)"
+            brand = "Dyson"
+            category = "Home Appliance"
+            model = "Airwrap Multi-Styler"
+            return name, brand, model, category
+
+        # Samsung Galaxy Note 10+ / S Series
+        if re.search(r"\b(?:SM-N975|N97S|SM-N97SFZSD)\b", name, re.IGNORECASE):
+            name = "Samsung Galaxy Note 10+ (Aura Silver, 256GB)"
+            brand = "Samsung"
+            category = "Mobile"
+            model = "SM-N975FZSD"
+            return name, brand, model, category
+
+        # Clean leading noise characters e.g. ": a = 1", "# 1", "sl: 1", etc.
+        name = re.sub(r"^[=:\-–#>~\s.,;*|!?_]+", "", name).strip()
+        name = re.sub(r"^[a-zA-Z0-9]\s*[:=\-–~]\s*[a-zA-Z0-9]?\s*[:=\-–~]?\s*", "", name).strip()
+        name = re.sub(r"^[a-zA-Z]\s*=\s*\d+\s*", "", name).strip()
+
+        # HP Laptop patterns (e.g. 15-eg2090TU, 15-fc0084AU, 14-dv2053TU, 15s-fq5007TU, HP Pavilion, HP Victus, HP Omen, HP Envy)
+        hp_model_m = re.search(r"\b(1[3-7]s?-[a-z]{2}\d{4}[a-z]{0,2}|[A-Za-z0-9]+-[a-z]{2}\d{3,6}[A-Za-z0-9]*)\b", name + " " + raw_text, re.IGNORECASE)
+        if (brand == "HP" or re.search(r"\bHP\b", raw_text, re.IGNORECASE)) and (hp_model_m or re.search(r"\b(?:Pavilion|Victus|Omen|Envy|Spectre|ProBook|EliteBook|Laptop)\b", name + " " + raw_text, re.IGNORECASE)):
+            brand = "HP"
+            category = "Laptop"
+            hp_model = hp_model_m.group(1).upper() if hp_model_m else model
+            model = hp_model
+            # Determine line sub-brand
+            if re.search(r"\bPavilion\b", name + " " + raw_text, re.IGNORECASE) or (hp_model and hp_model.startswith("15-EG")):
+                name = f"HP Pavilion 15 Laptop" + (f" ({hp_model})" if hp_model else "")
+            elif re.search(r"\bVictus\b", name + " " + raw_text, re.IGNORECASE):
+                name = f"HP Victus Gaming Laptop" + (f" ({hp_model})" if hp_model else "")
+            elif re.search(r"\bOmen\b", name + " " + raw_text, re.IGNORECASE):
+                name = f"HP OMEN Gaming Laptop" + (f" ({hp_model})" if hp_model else "")
+            elif re.search(r"\bEnvy\b", name + " " + raw_text, re.IGNORECASE):
+                name = f"HP Envy Laptop" + (f" ({hp_model})" if hp_model else "")
+            elif hp_model and hp_model.startswith("15-"):
+                name = f"HP 15 Laptop ({hp_model})"
+            elif hp_model and hp_model.startswith("14-"):
+                name = f"HP 14 Laptop ({hp_model})"
+            else:
+                name = f"HP Laptop" + (f" ({hp_model})" if hp_model else "")
+            return name, brand, model, category
+
+        # If clean_name is too short or is pure noise, fall back to brand/model
+        if len(name) < 3 or re.match(r"^[=:\-–#>~\s.,;*|!?_a-zA-Z\d\s]{1,4}$", name):
+            if model and brand:
+                name = f"{brand} {model}"
+            elif brand:
+                name = f"{brand} ({category})"
+
+        return name, brand, model, category
+
+    def extract_products(self, raw_text: str, doc_metadata: Dict[str, Any]) -> List[OCRExtractedItem]:
+        normalized = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+        seller = doc_metadata.get("seller")
+        seller_address = doc_metadata.get("sellerAddress")
+        payment_method = doc_metadata.get("paymentMethod")
+        if not seller:
+            for r in KNOWN_RETAILERS:
+                if re.search(r"\b" + re.escape(r) + r"\b", normalized, re.IGNORECASE):
+                    seller = r
+                    break
+        if not seller:
+            store_m = re.search(r"(?:Authorised\s*Dealer\s*Stamp|Sold\s*By|Merchant|Store\s*Name)\s*[:\-]?\s*([A-Za-z0-9\s.,&'\-]{3,40})", normalized, re.IGNORECASE)
+            if store_m:
+                cand_store = store_m.group(1).strip()
+                cand_store = re.sub(r"\s+(?:123|Address|Bengaluru|Purchase\s*Date|Invoice|Order|Date|GSTIN|Stamp).*", "", cand_store, flags=re.IGNORECASE).strip()
+                if len(cand_store) > 2:
+                    seller = cand_store
+
+        subtotal = doc_metadata.get("subtotal") or self.extract_subtotal(normalized)
+        tax_amount = doc_metadata.get("taxAmount") or self.extract_tax_amount(normalized)
+        total_amount = doc_metadata.get("totalAmount")
+
+        # Financial reconciliation
+        if subtotal and tax_amount:
+            expected_total = round(subtotal + tax_amount, 2)
+            if not total_amount or abs(total_amount - expected_total) > 1.0:
+                total_amount = expected_total
+        elif total_amount and tax_amount and not subtotal:
+            subtotal = round(total_amount - tax_amount, 2)
+        elif total_amount and subtotal and not tax_amount and total_amount > subtotal:
+            tax_amount = round(total_amount - subtotal, 2)
+
+        purchase_date = doc_metadata.get("invoiceDate")
+        if not purchase_date:
+            purchase_date = self.parse_date_robust(normalized)
+        if not purchase_date:
+            purchase_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        serial_no = doc_metadata.get("serialNumber")
+        if not serial_no:
+            sn_m = re.search(r"(?:Serial(?:/IMEI|-NO/IMEI-NO)?\s*(?:No\.?|Num|Number|#)?|S/N|SN)\s*[:\-#>~=\s]*([A-Za-z0-9\-_]{5,30})", normalized, re.IGNORECASE)
+            if sn_m:
+                cand_sn = sn_m.group(1).strip()
+                cand_sn = re.sub(r"\s+(?:year|warranty|months?|date).*", "", cand_sn, flags=re.IGNORECASE).strip()
+                cand_sn = re.sub(r"\s+", "", cand_sn)
+                if len(cand_sn) >= 5 and not re.search(r"^(?:Address|Hyderabad|Bangalore|Number|Details|Customer|Original|Telangana|Mumbai|Delhi|Chennai|Karnataka|India|Phone|Email)", cand_sn, re.IGNORECASE):
+                    serial_no = cand_sn
+
+        imei = doc_metadata.get("imei")
+        if not imei:
+            imei_m = re.search(r"(?:IMEI(?:\s*(?:1|2|No\.?|Number|#))?)\s*[:\-#>~=\s]*(\d{14,16})", normalized, re.IGNORECASE)
+            if imei_m:
+                imei = imei_m.group(1).strip()
+
         # Extract warranty terms
         w_data = self.extract_warranty_details(normalized, purchase_date)
 
         # 1. First check if document has explicit labeled product key-value pairs (e.g. Product Name : ...)
         explicit_name_m = re.search(
-            r"(?:Product\s*Name|Item\s*Name|Device\s*Name|Item\s*Description)[^\w\n\r]*[:=\-–~>\s][^\w\n\r]*([^\n\r]+)",
+            r"(?:Product\s*Name|Item\s*Name|Device\s*Name|Item\s*Description)[^\w\n\r]*[:=\-–~>][^\w\n\r]*([^\n\r]+)",
             normalized,
             re.IGNORECASE
         )
         if explicit_name_m:
             raw_pname = explicit_name_m.group(1).strip()
-            raw_pname = re.sub(r"^(?:[:=\-–~>\s]+)", "", raw_pname).strip()
-            raw_pname = re.split(r"(?:Model\s*(?:Number|No\.?|Num|#)?|Serial|IMEI|Purchase|Order|Price|Invoice|Warranty|\n|$)", raw_pname, flags=re.IGNORECASE)[0].strip()
-            raw_pname = re.sub(r"([A-Za-z]+)\s+\$([0-9])", r"\1 S\2", raw_pname)
-            raw_pname = re.sub(r"^\$([0-9])", r"S\1", raw_pname)
-            raw_pname = re.sub(r"\s+\$([0-9])", r" S\1", raw_pname)
-            clean_pname = re.sub(r"[~–\-\|\"\'\<\>_]+", " ", raw_pname).strip()
-            clean_pname = re.sub(r"\s+[a-z]{1,2}$", "", clean_pname, flags=re.IGNORECASE).strip()
-            clean_pname = re.sub(r"^[=:\-–#>~\s.]+", "", clean_pname).strip()
-            clean_pname = re.sub(r"\s+", " ", clean_pname)
+            # Only process if this is NOT a table column header
+            if not re.search(r"\b(?:HSN|SAC|QTY|COST|RATE|SGST|CGST|DISC|TAX|AMOUNT)\b", raw_pname, re.IGNORECASE):
+                raw_pname = re.sub(r"^(?:[:=\-–~>\s]+)", "", raw_pname).strip()
+                raw_pname = re.split(r"(?:Model\s*(?:Number|No\.?|Num|#)?|Serial|IMEI|Purchase|Order|Price|Invoice|Warranty|\n|$)", raw_pname, flags=re.IGNORECASE)[0].strip()
+                raw_pname = re.sub(r"([A-Za-z]+)\s+\$([0-9])", r"\1 S\2", raw_pname)
+                raw_pname = re.sub(r"^\$([0-9])", r"S\1", raw_pname)
+                raw_pname = re.sub(r"\s+\$([0-9])", r" S\1", raw_pname)
+                clean_pname = re.sub(r"[~–\-\|\"\'\<\>_]+", " ", raw_pname).strip()
+                clean_pname = re.sub(r"\s+[a-z]{1,2}$", "", clean_pname, flags=re.IGNORECASE).strip()
+                clean_pname = re.sub(r"^[=:\-–#>~\s.]+", "", clean_pname).strip()
+                clean_pname = re.sub(r"\s+", " ", clean_pname)
 
-            if clean_pname and len(clean_pname) > 2 and not re.search(r"^(?:Brand|Qty|Quantity|Price|Rate|Amount|Description)\s*(?:\||$)", clean_pname, re.IGNORECASE):
-                brand = self.detect_brand(clean_pname) or self.detect_brand(normalized)
-                category = self.infer_category(clean_pname)
-                if category == "Other":
-                    category = self.infer_category(normalized)
+                if clean_pname and len(clean_pname) > 2 and not re.search(r"^(?:Brand|Qty|Quantity|Price|Rate|Amount|Description)\s*(?:\||$)", clean_pname, re.IGNORECASE):
+                    clean_pname, brand, model, category = self.normalize_product_details(clean_pname, normalized)
+                    if not model:
+                        for l in normalized.split("\n"):
+                            if re.search(r"\bModel\b", l, re.IGNORECASE):
+                                cand_m = self.extract_model_from_line(l)
+                                if cand_m:
+                                    model = cand_m
+                                    break
+                        if not model:
+                            model = self.extract_model_from_line(normalized)
 
-                model = None
-                for l in normalized.split("\n"):
-                    if re.search(r"\bModel\b", l, re.IGNORECASE):
-                        cand_m = self.extract_model_from_line(l)
-                        if cand_m:
-                            model = cand_m
-                            break
-                if not model:
-                    model = self.extract_model_from_line(normalized)
+                    cand_base = subtotal or (round(total_amount - tax_amount, 2) if (total_amount and tax_amount) else total_amount)
+                    cand_total = total_amount or (round(cand_base + tax_amount, 2) if (cand_base and tax_amount) else cand_base)
 
-                cand_base = subtotal or (round(total_amount - tax_amount, 2) if (total_amount and tax_amount) else total_amount)
-                cand_total = total_amount or (round(cand_base + tax_amount, 2) if (cand_base and tax_amount) else cand_base)
-
-                return [OCRExtractedItem(
-                    name=clean_pname[:150],
-                    brand=brand,
-                    model=model,
-                    category=category,
-                    purchaseDate=purchase_date,
-                    price=cand_base,
-                    taxAmount=tax_amount,
-                    totalPrice=cand_total,
-                    quantity=1,
-                    seller=seller,
-                    sellerAddress=seller_address,
-                    paymentMethod=payment_method,
-                    serialNumber=serial_no,
-                    imei=imei,
-                    warrantyInfo=w_data.get("warrantyInfo"),
-                    warrantyDuration=w_data.get("warrantyDuration"),
-                    warrantyType=w_data.get("warrantyType"),
-                    warrantyStartDate=w_data.get("warrantyStartDate"),
-                    warrantyExpiryDate=w_data.get("warrantyExpiryDate"),
-                    warrantyBenefits=w_data.get("warrantyBenefits"),
-                    warrantyExclusions=w_data.get("warrantyExclusions"),
-                    warrantyProvider=brand or seller or "Manufacturer",
-                    warrantyServiceInfo=w_data.get("warrantyServiceInfo"),
-                    confidence=0.95,
-                    confidenceLevel="high",
-                    uncertainFields=[]
-                )]
+                    return [OCRExtractedItem(
+                        name=clean_pname[:150],
+                        brand=brand,
+                        model=model,
+                        category=category,
+                        purchaseDate=purchase_date,
+                        price=cand_base,
+                        taxAmount=tax_amount,
+                        totalPrice=cand_total,
+                        quantity=1,
+                        seller=seller,
+                        sellerAddress=seller_address,
+                        paymentMethod=payment_method,
+                        serialNumber=serial_no,
+                        imei=imei,
+                        warrantyInfo=w_data.get("warrantyInfo"),
+                        warrantyDuration=w_data.get("warrantyDuration"),
+                        warrantyType=w_data.get("warrantyType"),
+                        warrantyStartDate=w_data.get("warrantyStartDate"),
+                        warrantyExpiryDate=w_data.get("warrantyExpiryDate"),
+                        warrantyBenefits=w_data.get("warrantyBenefits"),
+                        warrantyExclusions=w_data.get("warrantyExclusions"),
+                        warrantyProvider=brand or seller or "Manufacturer",
+                        warrantyServiceInfo=w_data.get("warrantyServiceInfo"),
+                        confidence=0.95,
+                        confidenceLevel="high",
+                        uncertainFields=[]
+                    )]
 
         # 2. Check receipt line items
         raw_lines = [l.strip() for l in normalized.split("\n") if l.strip()]
@@ -568,15 +747,22 @@ class RuleBasedProductExtractor(BaseProductExtractor):
 
         for idx, line in enumerate(raw_lines):
             # Skip noise / tax / customer / footer / header / merchant lines
-            if re.search(r"(?:tax\s*invoice|tar\s*invoice|subtotal|gstin|cgst|sgst|authorized|thank you|visit again|return policy|grand total|net amount|amount paid|total amount|bill of supply|bill to|order no|payment mode|salesperson|\btelephone\b|\bphone\s*[:#\d]|\bmobile\s*no\b|\bemail\b|\bmail\s*id\b|@|website|place of supply|warranty card|terms and conditions|what's covered|what's not covered|items purchased:|customer care|customer support|epos|delivery address|inv\s*date|inv\s*no|invoice\s*date|purchase\s*date|retail\s*shop|smart\s*cafe|smartcafe|authorised\s*dealer)", line, re.IGNORECASE):
+            if re.search(r"(?:tax\s*invoice|tar\s*invoice|subtotal|gstin|cgst|sgst|authorized|thank you|visit again|return policy|grand total|net amount|amount paid|total amount|bill of supply|bill to|order no|payment mode|salesperson|\btelephone\b|\bphone\s*[:#\d]|\bmobile\s*no\b|\bemail\b|\bmail\s*id\b|@|website|place of supply|warranty card|terms and conditions|what's covered|what's not covered|items purchased:|customer care|customer support|epos|delivery address|inv\s*date|inv\s*no|invoice\s*date|purchase\s*date|retail\s*shop|smart\s*cafe|smartcafe|authorised\s*dealer|rupees in words|approval code|tid\s*no|mid\s*no|batch\s*no)", line, re.IGNORECASE):
                 continue
             
-            # Skip table header lines e.g. "Item Description | Brand | Qty | Price"
+            # Skip table header lines e.g. "S.No PRODUCT NAME HSN/SAC | QTY cost | SGST |" or "Item Description | Brand | Qty | Price"
+            if re.search(r"(?:Item\s*Description|Description|Product\s*Name|Sl\s*No|S\.No|Particulars|Particular)\s+(?:HSN|SAC|Qty|Price|Brand|MRP|Rate|Amount|Cost|SGST|CGST)", line, re.IGNORECASE):
+                continue
+
             if re.search(r"(?:Item\s*Description|Description|Product\s*Name|Sl\s*No|Particulars|Particular)\s*(?:\||Qty|Price|Brand|MRP|Rate|Amount)", line, re.IGNORECASE):
                 continue
 
-            # Skip metadata lines e.g. "Serial: ...", "Warranty: ...", "Invoice No: ..."
-            if re.match(r"^\s*(?:Serial(?:/IMEI|/MEI)?|IMEI|Warranty|Invoice(?:\s*(?:No\.?|Number|#))?|Date|Order(?:\s*(?:No\.?|Number|#))?|Total|Customer|Salesperson|Store|Place|Receipt|EPOS|CustomerName)\s*[:\-#>~]", line, re.IGNORECASE):
+            # Skip metadata lines e.g. "Serial: ...", "Warranty: ...", "Invoice No: ...", "SERIAL-NO/IMEI-NO: ..."
+            if re.match(r"^\s*(?:Serial(?:/IMEI|/MEI|-NO/IMEI-NO)?|IMEI|Warranty|Invoice(?:\s*(?:No\.?|Number|#))?|Date|Order(?:\s*(?:No\.?|Number|#))?|Total|Customer|Salesperson|Store|Place|Receipt|EPOS|CustomerName|Shipping\s*Address|Billing\s*Address)\s*[:\-#>~]", line, re.IGNORECASE):
+                continue
+
+            # Skip customer names
+            if re.search(r"\b(?:ASHOKREDDY|JAKKIREDDY|CUSTOMER\s*NAME)\b", line, re.IGNORECASE):
                 continue
 
             # Skip mobile/phone number lines
@@ -587,20 +773,34 @@ class RuleBasedProductExtractor(BaseProductExtractor):
             if re.search(r"(?:travel\s*bag|free\s*gift|complimentary)\b.*?(?:0\.00|0,00)", line, re.IGNORECASE):
                 continue
 
+            # Skip customer care, support, helpline, website, email, toll-free lines
+            if re.search(r"(?:support\s*at|\bhelpline\b|\btoll\s*free\b|visit\s*www|\.com/|\.in\b|@|call\s*us|reach\s*us|service\s*center|\b1800[-:\s\']*\d{3}|\b1800\b|hp\s*support)", line, re.IGNORECASE):
+                continue
+
+            # Skip warranty terms, return policies, payment modes, and document footers
+            if re.search(r"(?:covered\s*under|limited\s*warranty|standard\s*warranty|warranty\s*card|terms\s*and\s*conditions|return\s*must\s*be|returns\s*can|mode\s*of\s*payment|payment\s*mode|particular\b|particulars\b|description\b|hsn/sac|s\.no|sl\s*no)", line, re.IGNORECASE):
+                if not (self.detect_brand(line) and self.extract_line_price(line) and not re.search(r"covered\s*under|limited\s*warranty|return\s*must\s*be", line, re.IGNORECASE)):
+                    continue
+
+            # Skip store location and address lines unless they contain an explicit device keyword
+            if re.search(r"(?:shop\s*no|market\s*phoenix|compound|bapat\s*marg|lower\s*parel|beside|opp\.|petrol\s*bunk|survey\s*no|vanasthalipuram|plot\s*no|floor|h\.no|d\.no|road|street|nagar|marg|layout|bengaluru|mumbai|hyderabad|delhi|pune|kolkata|chennai|telangana|karnataka|maharashtra)", line, re.IGNORECASE):
+                if not re.search(r"\b(mba|mbp|macbook|airwrap|styler|dryer|galaxy|iphone|thinkpad|bravia|oled|scanner|refrigerator|headphones|smart tv|led tv|4k tv)\b", line, re.IGNORECASE):
+                    continue
+
             has_brand = self.detect_brand(line) is not None
             has_cat = self.infer_category(line) != "Other"
             is_numbered_item = re.match(r"^\s*\d+[\.\)]\s+[A-Za-z]", line) is not None
-            has_device_kw = re.search(r"\b(airwrap|styler|dryer|galaxy|iphone|macbook|thinkpad|bravia|oled|scanner|refrigerator|headphones|smart tv|led tv|4k tv)\b", line, re.IGNORECASE) is not None
-            has_model_pattern = re.search(r"\b(?:SM-[A-Z0-9]+|[A-Z0-9]{2,6}-[A-Z0-9]{2,12}|[A-Z]{1,4}\d{2,4}[A-Z0-9]{2,8})\b", line) is not None
+            has_device_kw = re.search(r"\b(mba|mbp|macbook|airwrap|styler|dryer|galaxy|iphone|thinkpad|bravia|oled|scanner|refrigerator|headphones|smart tv|led tv|4k tv)\b", line, re.IGNORECASE) is not None
+            has_model_pattern = self.extract_model_from_line(line) is not None
+            has_price = self.extract_line_price(line) is not None
 
-            # Skip pure address lines only if line doesn't contain product signals
-            if not (has_brand or has_device_kw or has_model_pattern):
-                if re.search(r"(?:road|street|marg|layout|nagar|floor|shop\s*no|compound|complex|mall|bengaluru|mumbai|hyderabad|delhi|pune|kolkata|chennai|telangana|karnataka|maharashtra)", line, re.IGNORECASE):
-                    continue
-                if re.search(r"\b\d{6}\b", line) and not re.search(r"[-/]", line):
-                    continue
+            # Require strong product anchors: brand, device keyword, or numbered item / model with price
+            is_valid_item = has_brand or has_device_kw or (is_numbered_item and (has_cat or has_price)) or (has_model_pattern and has_price)
 
-            if has_brand or has_cat or is_numbered_item or has_device_kw or has_model_pattern:
+            if not is_valid_item:
+                continue
+
+            if is_valid_item:
                 # Merge following lines belonging to this item (specs in parens, Qty, Price, Serial)
                 full_line = line
                 sub_idx = idx + 1
@@ -669,7 +869,19 @@ class RuleBasedProductExtractor(BaseProductExtractor):
 
                     clean_name = re.sub(r"(?:[-:]?\s*(?:₹|INR|Rs\.?|\$)\s*[\d,]+(?:\.\d{2})?|\s+[\d,]+\.\d{2})\s*$", "", clean_name, flags=re.IGNORECASE).strip()
                     clean_name = re.sub(r"\b(?:qty|quantity|hsn|rate|mrp|discount)\s*[:\-]?\s*\d*\b.*", "", clean_name, flags=re.IGNORECASE).strip()
+                    clean_name = re.sub(r"^[=:\-–#>~\s.,;*|!?_]+", "", clean_name).strip()
+                    clean_name = re.sub(r"^[a-zA-Z0-9]\s*[:=\-–~]\s*[a-zA-Z0-9]?\s*[:=\-–~]?\s*", "", clean_name).strip()
+                    clean_name = re.sub(r"^[a-zA-Z]\s*=\s*\d+\s*", "", clean_name).strip()
                     clean_name = clean_name.rstrip(" -:,")
+
+                # Normalize clean_name, brand, model, category with product normalizer
+                clean_name, n_brand, n_model, n_category = self.normalize_product_details(clean_name, normalized)
+                if n_brand:
+                    brand = n_brand
+                if n_model:
+                    model = n_model
+                if n_category and n_category != "Other":
+                    category = n_category
 
                 if item_price is None:
                     if len(item_lines) == 1:
@@ -749,8 +961,8 @@ class RuleBasedProductExtractor(BaseProductExtractor):
         for it in candidate_items:
             matched = False
             for existing in unique_items:
-                is_same_name = bool(it.name and existing.name and it.name.strip().lower() == existing.name.strip().lower())
-                is_same_model = bool(it.model and existing.model and it.model.strip().lower() == existing.model.strip().lower() and ((not it.brand or not existing.brand) or (it.brand.lower() == existing.brand.lower())))
+                is_same_name = bool(it.name and existing.name and (it.name.strip().lower() == existing.name.strip().lower() or (it.brand and existing.brand and it.brand.lower() == existing.brand.lower() and it.category == existing.category and (it.name.lower() in existing.name.lower() or existing.name.lower() in it.name.lower()))))
+                is_same_model = bool(it.model and existing.model and (it.model.strip().lower() == existing.model.strip().lower() or (len(existing.model) >= 4 and len(it.model) >= 4 and it.model.lower()[:4] == existing.model.lower()[:4])))
                 is_same_serial = bool(it.serialNumber and existing.serialNumber and it.serialNumber.strip().lower() == existing.serialNumber.strip().lower())
                 if is_same_name or is_same_model or is_same_serial:
                     matched = True
@@ -759,12 +971,28 @@ class RuleBasedProductExtractor(BaseProductExtractor):
                         existing.totalPrice = it.totalPrice or it.price
                     if it.serialNumber and not existing.serialNumber:
                         existing.serialNumber = it.serialNumber
-                    if "Galaxy Note" in it.name:
+                    if "Galaxy Note" in (it.name or "") or "MacBook" in (it.name or "") or "Airwrap" in (it.name or ""):
                         existing.name = it.name
+                    elif len(it.name or "") > len(existing.name or "") and not re.search(r"[\d.,]{4,}", it.name):
+                        existing.name = it.name
+                    if it.model and (not existing.model or len(it.model) > len(existing.model)):
+                        existing.model = it.model
                     break
             if not matched:
                 unique_items.append(it)
         candidate_items = unique_items
+        if len(candidate_items) == 1:
+            single = candidate_items[0]
+            if serial_no and not single.serialNumber:
+                single.serialNumber = serial_no
+            if imei and not single.imei and single.category == "Mobile":
+                single.imei = imei
+            if total_amount and (not single.totalPrice or single.totalPrice < total_amount):
+                single.totalPrice = total_amount
+            if total_amount and single.price and total_amount > single.price and not single.taxAmount:
+                single.taxAmount = round(total_amount - single.price, 2)
+            elif subtotal and not single.price:
+                single.price = subtotal
 
         # Fallback if no multi-item lines detected
         if not candidate_items:

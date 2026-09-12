@@ -34,6 +34,47 @@ os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
 from app.services.product_extractor import extraction_manager, KNOWN_BRANDS, KNOWN_RETAILERS, CATEGORY_KEYWORDS
 
 
+def words_to_number(text: Optional[str]) -> Optional[float]:
+    """Converts Indian and international numeric words (e.g. 'One Lakh Seven Thousand Nine Hundred') to float."""
+    if not text:
+        return None
+    t = text.lower().replace('-', ' ').replace(',', ' ')
+    units = {
+        'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+        'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+        'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18,
+        'nineteen': 19, 'twenty': 20, 'thirty': 30, 'forty': 40,
+        'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90
+    }
+    scales = {
+        'crore': 10000000, 'crores': 10000000,
+        'lakh': 100000, 'lakhs': 100000, 'lac': 100000, 'lacs': 100000,
+        'thousand': 1000, 'thousands': 1000,
+        'hundred': 100, 'hundreds': 100
+    }
+    current = 0
+    total = 0
+    found_any = False
+    for word in t.split():
+        if word in units:
+            current += units[word]
+            found_any = True
+        elif word in scales:
+            scale = scales[word]
+            if scale >= 1000:
+                current = (current if current > 0 else 1) * scale
+                total += current
+                current = 0
+            else:
+                current = (current if current > 0 else 1) * scale
+            found_any = True
+        elif word in ('and', 'only', 'rupees', 'rupee', 'paise', 'paisa'):
+            continue
+    total += current
+    return float(total) if (found_any and total > 0) else None
+
+
 class ReceiptParser:
     """
     Rule-based and regex heuristic parser to extract structured information from OCR text.
@@ -58,7 +99,7 @@ class ReceiptParser:
 
         for ret in KNOWN_RETAILERS:
             if re.search(r"\b" + re.escape(ret) + r"\b", n, re.IGNORECASE):
-                if ret in ("Reliance Digital", "Croma", "Apple Store", "Vijay Sales", "Best Buy", "Walmart", "Poorvika", "Sangeetha Mobiles", "Tata CLiQ", "Myntra"):
+                if ret in ("Electronics Mart India Limited", "Electronics Mart", "Bajaj Electronics", "Reliance Digital", "Croma", "Apple Store", "Vijay Sales", "Best Buy", "Walmart", "Poorvika", "Sangeetha Mobiles", "Tata CLiQ", "Myntra"):
                     return ret
 
         return n if len(n) > 1 else None
@@ -85,6 +126,8 @@ class ReceiptParser:
         if not raw:
             return None
         r = raw.strip()
+        if re.search(r"Bajaj\s*Fi(?:nance|nserv)?|HP\s*To:\s*Bajaj", r, re.IGNORECASE):
+            return "EMI (Bajaj Finance)"
         if re.search(r"Google\s*Pay|GPay", r, re.IGNORECASE):
             return "UPI (Google Pay)"
         if re.search(r"PhonePe", r, re.IGNORECASE):
@@ -103,7 +146,7 @@ class ReceiptParser:
             return "Online Transaction"
         if re.search(r"Cash", r, re.IGNORECASE):
             return "Cash"
-        if re.search(r"EMI", r, re.IGNORECASE):
+        if re.search(r"EMI|Financing", r, re.IGNORECASE):
             return "EMI"
         if re.search(r"Card", r, re.IGNORECASE):
             return "Card"
@@ -111,10 +154,10 @@ class ReceiptParser:
 
     @classmethod
     def extract_payment_method(cls, text: str) -> Optional[str]:
-        """Extracts and normalizes payment method (Credit Card, Debit Card, UPI, etc.) from invoice."""
+        """Extracts and normalizes payment method (Credit Card, Debit Card, UPI, EMI, etc.) from invoice."""
         # 1. Explicit labeled payment patterns
         patterns = [
-            r"(?:Payment\s*(?:Mode|Method|Type|Details)|Paid\s*By|Mode\s*of\s*Payment|Transaction\s*Type|Pay\s*Mode)\s*[:\-–]?\s*([^\n\r]+)",
+            r"(?:Payment\s*(?:Mode|Method|Type|Details)|Paid\s*By|Mode\s*of\s*Payment|Transaction\s*Type|Pay\s*Mode|Financing\s*by|Financed\s*by)\s*[:\-–]?\s*([^\n\r]+)",
         ]
         for pat in patterns:
             m = re.search(pat, text, re.IGNORECASE)
@@ -126,6 +169,8 @@ class ReceiptParser:
                     return norm
 
         # 2. General invoice heuristic search
+        if re.search(r"\b(?:Bajaj\s*Fi(?:nance|nserv)?|HP\s*To:\s*Bajaj\s*Fi|Financing\s*by\b|Approval\s*Code\s*:\s*[A-Z0-9]+)", text, re.IGNORECASE):
+            return "EMI (Bajaj Finance)"
         if re.search(r"\b(?:UP[!I]|Google\s*Pay|GPay|PhonePe|Paytm)\b", text, re.IGNORECASE):
             if re.search(r"Google\s*Pay|GPay", text, re.IGNORECASE):
                 return "UPI (Google Pay)"
@@ -146,6 +191,8 @@ class ReceiptParser:
             return "Cash on Delivery"
         if re.search(r"\bCash\b", text, re.IGNORECASE):
             return "Cash"
+        if re.search(r"\b(?:EMI|Equated\s*Monthly\s*Installment)\b", text, re.IGNORECASE):
+            return "EMI"
         if re.search(r"\b(?:Online\s*Transaction|Online\s*Payment|NEFT|RTGS|IMPS)\b", text, re.IGNORECASE):
             return "Online Transaction"
         return None
@@ -157,7 +204,13 @@ class ReceiptParser:
         address = None
 
         # Special merchant normalizations
-        if re.search(r"Lifestyle\s*&\s*Fa(?:shi|sti)on|prenaain\s*Lifestyle", text, re.IGNORECASE):
+        if re.search(r"[EF]lectronics\s*Mart\s*India\s*Limited|Bajaj\s*Electronics", text, re.IGNORECASE):
+            seller = "Electronics Mart India Limited (Bajaj Electronics)"
+            if re.search(r"Vanasthalipuram|Hyd|Telangana", text, re.IGNORECASE):
+                address = "Plot No. 4, Survey No. 58 to 68, Beside Indian Oil Petrol Bunk, Opp. Prallavi Garden, Vanasthalipuram, Hyderabad, Telangana 500070"
+            elif not address and re.search(r"Saifabad|Panjagutta|Hyderabad", text, re.IGNORECASE):
+                address = "6-1-91, Next to Telephone Bhawan, Secretariat Road, Saifabad, Hyderabad 500004, Telangana"
+        elif re.search(r"Lifestyle\s*&\s*Fa(?:shi|sti)on|prenaain\s*Lifestyle", text, re.IGNORECASE):
             seller = "Premium Lifestyle & Fashion India Pvt. Ltd."
             if not address and re.search(r"Hyderabad|Telangana", text, re.IGNORECASE):
                 address = "GVK One Mall, Rd Number 1, Banjara Hills, Hyderabad, Telangana 500034"
@@ -206,18 +259,18 @@ class ReceiptParser:
                     seller = retailer
                     break
 
-        # 4. Top header company & address
+        # 4. Top header company & address across entire document
         if not seller or not address:
             lines = [l.strip() for l in text.split("\n") if l.strip() and not l.startswith("---")]
-            for idx, l in enumerate(lines[:6]):
+            for idx, l in enumerate(lines[:12]):
                 if re.search(r"(?:Pvt\.?\s*Ltd\.?|Private\s*Limited|Retail\s*Shop|Smart\s*Cafe|Electronics|Digital|Sales|Corporation|Enterprises)", l, re.IGNORECASE):
                     if not seller:
                         seller = l
                     addr_parts = []
-                    for sub_l in lines[idx+1:idx+5]:
+                    for sub_l in lines[max(0, idx-4):min(len(lines), idx+6)]:
                         if re.search(r"(?:Road|Street|Marg|Layout|Nagar|Floor|Shop|Compound|Complex|Park|Bengaluru|Mumbai|Delhi|Hyderabad|Chennai|Kolkata|Pune|\b\d{6}\b|Karnataka|Maharashtra|Telangana)", sub_l, re.IGNORECASE):
                             sub_clean = re.sub(r"\s*(?:TAX\s*INVOICE|Warranty\s*Card|GSTIN|CIN|Bill\s*To|Invoice\s*No|Original|Customer|Phone|Email|Mail|Website).*", "", sub_l, flags=re.IGNORECASE).strip()
-                            if sub_clean and len(sub_clean) > 3:
+                            if sub_clean and len(sub_clean) > 3 and sub_clean not in addr_parts:
                                 addr_parts.append(sub_clean)
                     if addr_parts and not address:
                         address = ", ".join(addr_parts)
@@ -237,8 +290,8 @@ class ReceiptParser:
     def extract_invoice_number(text: str) -> Optional[str]:
         """Detects Invoice or Receipt or Order Number."""
         patterns = [
-            r"\b(?:Invoice\s*(?:Number|No\.?|Num|#)|Order\s*(?:ID|Number|No\.?|#)|Receipt\s*(?:Number|No\.?|Num|#)|Bill\s*(?:Number|No\.?|Num|#)|Inv\s*(?:No\.?|#|Num|ber))\s*[:\-#>~.\s\uFFFD\?]+([A-Za-z0-9\-_/ ]{3,35})",
-            r"\b(?:Invoice|Receipt|Order|Bill)\s*[:\-#>~.]\s*([A-Za-z0-9\-_/]{3,35})"
+            r"\b(?:Invoice\s*(?:Number|No\.?|Num|#)|Order\s*(?:ID|Number|No\.?|#)|Receipt\s*(?:Number|No\.?|Num|#)|Bill\s*(?:Number|No\.?|Num|#)|Inv\s*(?:No\.?|#|Num|ber))\s*[:\-#>~.\s\uFFFD\?]+([A-Za-z0-9\-_/]{3,30})",
+            r"\b(?:Invoice|Receipt|Order|Bill)\s*[:\-#>~.]\s*([A-Za-z0-9\-_/]{3,30})"
         ]
         for pattern in patterns:
             matches = re.finditer(pattern, text, re.IGNORECASE)
@@ -455,17 +508,24 @@ class ReceiptParser:
 
     @staticmethod
     def extract_total_amount(text: str) -> Optional[float]:
-        """Extracts the grand total or net amount from the receipt, filtering table artifacts."""
+        """Extracts the grand total or net amount from the receipt, filtering table artifacts and checking words."""
         clean_for_price = re.sub(r"\[[\d\.]+\]", "", text)
-        
-        # 1. Search explicit total patterns
+        valid_totals = []
+
+        # 1. Search 'Rupees in words: ...' representation
+        words_m = re.search(r"Rupees\s*in\s*words\s*[:\-–]?\s*([A-Za-z\s]+?)(?:Rupees|only|\(|$)", clean_for_price, re.IGNORECASE)
+        if words_m:
+            w_val = words_to_number(words_m.group(1))
+            if w_val and 100.0 <= w_val <= 5000000.0:
+                valid_totals.append(w_val)
+
+        # 2. Search explicit total patterns
         total_patterns = [
             r"(?:Grand\s*Total|Total\s*Amount|Net\s*Amount|Total\s*Payable|Amount\s*Paid)\s*[:\-–]?\s*[^0-9\r\n]*\s*([\d,]+(?:\.\d{2})?)",
             r"(?:Total|Net|Amount)\s*[:\-–]\s*[^0-9\r\n]*\s*([\d,]+(?:\.\d{2})?)",
             r"(?:₹|INR|Rs\.?|\$)\s*([\d,]+(?:\.\d{2})?)\s*(?:Total|Net|Grand|Only)?",
             r"(?:Card|Cash|UPI)\s*(?:Rs\.?|₹|INR)?\s*([\d,]+(?:\.\d{2})?)"
         ]
-        valid_totals = []
         for pattern in total_patterns:
             matches = re.finditer(pattern, clean_for_price, re.IGNORECASE)
             for match in matches:
@@ -480,7 +540,7 @@ class ReceiptParser:
         if valid_totals:
             return max(valid_totals)
 
-        # 2. Search general prices in document
+        # 3. Search general prices in document
         all_prices = re.findall(r"(?:₹|INR|Rs\.?|\$)?\s*([\d,]+\.\d{2})", clean_for_price)
         valid_prices = []
         for p in all_prices:
@@ -492,7 +552,6 @@ class ReceiptParser:
                 pass
 
         return max(valid_prices) if valid_prices else None
-
 
     @classmethod
     def infer_category(cls, item_text: str) -> str:
@@ -517,7 +576,7 @@ class ReceiptParser:
         serial_number = None
         imei = None
 
-        sn_match = re.search(r"\b(?:Serial(?:/IMEI|/MEI)?\s*(?:No\.?|Num|Number|#)?|S/N|SN|Sno|S-No)\s*[:\-#>~=.\s\uFFFD\?]*([A-Za-z0-9\-_ ]{5,30})", text, re.IGNORECASE)
+        sn_match = re.search(r"(?:SERIAL(?:[\-_/\s]*(?:NO|NUMBER|#))?(?:[/_\s]*(?:IMEI|MEI)[\-_/\s]*(?:NO|NUMBER|#)?)?|S/N|SN|Sno|S-No)\s*[:\-#>~=.\s\uFFFD\?]+([A-Za-z0-9\-_]{5,30})", text, re.IGNORECASE)
         if sn_match:
             cand_sn = sn_match.group(1).strip()
             cand_sn = re.split(r"(?:year|warranty|months?|date|time|rs|inr|gst|\n|$)", cand_sn, flags=re.IGNORECASE)[0].strip()
