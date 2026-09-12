@@ -230,7 +230,14 @@ export const aiApi = {
   // Legacy product chat methods
   getChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'GET' }),
   sendMessage: (payload) => request('/ai/chat', { method: 'POST', body: payload }),
-  clearChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'DELETE' })
+  clearChatHistory: (productId) => request(`/ai/chat/${productId}`, { method: 'DELETE' }),
+  // Server-side Speech-to-Text fallback
+  transcribeSpeech: (audioBlob, language = 'en-IN') => {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'speech.wav');
+    formData.append('language', language);
+    return request('/ai/speech-to-text', { method: 'POST', body: formData });
+  }
 };
 
 // Warranty Intelligence API methods
@@ -271,6 +278,21 @@ export const accessoriesApi = {
 export const recallsApi = {
   checkProduct: (productId) => request(`/safety-recalls/check/${productId}`, { method: 'GET' }),
   vaultScan: () => request('/safety-recalls/vault-scan', { method: 'GET' })
+};
+
+// Dynamic Multilingual Translation API methods
+export const translationApi = {
+  getLanguages: () => request('/translation/languages', { method: 'GET' }),
+  translate: (text, targetLanguage, sourceLanguage = 'en') =>
+    request('/translation/translate', {
+      method: 'POST',
+      body: { text, targetLanguage, sourceLanguage }
+    }),
+  translateBatch: (texts, targetLanguage, sourceLanguage = 'en') =>
+    request('/translation/batch', {
+      method: 'POST',
+      body: { texts, targetLanguage, sourceLanguage }
+    })
 };
 
 

@@ -75,6 +75,7 @@ import ServiceFormModal from '../../components/service/ServiceFormModal';
 import ServiceHistoryList from '../../components/service/ServiceHistoryList';
 import SafetyRecallCard from '../../components/safety/SafetyRecallCard';
 import { productsApi, documentsApi, warrantiesApi, maintenanceApi, servicesApi, accessoriesApi } from '../../services/api';
+import { useLanguage, useLocalizedText, useLocalizedList } from '../../i18n/LanguageContext';
 
 import './ProductDetail.css';
 
@@ -105,6 +106,7 @@ function formatFileSize(bytes) {
 export default function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [product, setProduct] = useState(null);
   const [documents, setDocuments] = useState([]);
@@ -116,6 +118,19 @@ export default function ProductDetail() {
   const [lifeScore, setLifeScore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Dynamic localization wrappers for user content
+  const localizedProductName = useLocalizedText(product?.name || '');
+  const localizedProductNotes = useLocalizedText(product?.notes || '');
+  const localizedSeller = useLocalizedText(product?.seller || '');
+  const localizedSellerAddress = useLocalizedText(product?.sellerAddress || '');
+  const localizedPaymentMethod = useLocalizedText(product?.paymentMethod || '');
+  const localizedReturnPolicySource = useLocalizedText(product?.returnPolicySource || '');
+  const localizedWarranties = useLocalizedList(warranties, ['type', 'benefits', 'exclusions', 'conditions', 'claimProcedure', 'serviceInformation', 'status']);
+  const localizedMaintenance = useLocalizedList(maintenanceRecords, ['title', 'type', 'description', 'notes', 'recommendations', 'technicianNotes', 'status']);
+  const localizedRecommendations = useLocalizedList(recommendations, ['title', 'description', 'disclaimer', 'source']);
+  const localizedAccessories = useLocalizedList(accessories, ['name', 'category', 'compatibilityReason', 'platform']);
+  const localizedServiceRecords = useLocalizedList(serviceRecords, ['serviceType', 'providerName', 'issueDescription', 'workPerformed', 'technicianNotes', 'status']);
 
   // Active tab: 'overview' | 'lifescore' | 'warranties' | 'maintenance' | 'service' | 'accessories' | 'timeline' | 'documents'
   const [activeTab, setActiveTab] = useState('overview');
@@ -371,11 +386,11 @@ export default function ProductDetail() {
               <div className="hero-badge-strip">
                 <span className="hero-brand-pill">{product.brand}</span>
                 <Badge variant="info" size="sm">
-                  {product.category}
+                  {t(`categories.${product.category}`, {}, product.category)}
                 </Badge>
                 {product.model && (
                   <span className="hero-model-pill">
-                    <Hash size={11} /> Model: {product.model}
+                    <Hash size={11} /> {t('products.model', {}, 'Model')}: {product.model}
                   </span>
                 )}
 
@@ -391,51 +406,51 @@ export default function ProductDetail() {
                 {warranties.length > 0 ? (
                   expiringWarrantiesCount > 0 ? (
                     <Badge variant="warning" size="sm" dot>
-                      {expiringWarrantiesCount} Expiring Soon
+                      {expiringWarrantiesCount} {t('dashboard.warrantyExpiringBadge', {}, 'Expiring Soon')}
                     </Badge>
                   ) : activeWarrantiesCount > 0 ? (
                     <Badge variant="active" size="sm" dot>
-                      {activeWarrantiesCount} Active Warranty
+                      {activeWarrantiesCount} {t('dashboard.warrantyActiveBadge', {}, 'Active Warranty')}
                     </Badge>
                   ) : (
                     <Badge variant="danger" size="sm" dot>
-                      Warranty Expired
+                      {t('dashboard.warrantyExpiredBadge', {}, 'Warranty Expired')}
                     </Badge>
                   )
                 ) : (
                   <Badge variant="neutral" size="sm">
-                    No Warranty Added
+                    {t('dashboard.noWarrantyBadge', {}, 'No Warranty Added')}
                   </Badge>
                 )}
               </div>
 
-              <h2 className="hero-title">{product.name}</h2>
+              <h2 className="hero-title">{localizedProductName || product.name}</h2>
 
               <div className="hero-meta-inline">
                 {product.seller && (
                   <span className="hero-meta-chip">
-                    <Store size={13} /> Store: {product.seller}
+                    <Store size={13} /> {t('products.seller', {}, 'Store')}: {localizedSeller || product.seller}
                   </span>
                 )}
                 {product.purchaseDate && (
                   <span className="hero-meta-chip">
-                    <Calendar size={13} /> Purchased: {product.purchaseDate}
+                    <Calendar size={13} /> {t('products.purchaseDate', {}, 'Purchased')}: {product.purchaseDate}
                   </span>
                 )}
                 {product.serialNumber && (
                   <span className="hero-meta-chip">
-                    <Hash size={13} /> S/N: {product.serialNumber}
+                    <Hash size={13} /> {t('products.serialNumber', {}, 'S/N')}: {product.serialNumber}
                   </span>
                 )}
               </div>
 
-              {product.notes && <p className="hero-desc">{product.notes}</p>}
+              {product.notes && <p className="hero-desc">{localizedProductNotes || product.notes}</p>}
             </div>
           </div>
 
           <div className="hero-right">
             <div className="price-tag-card">
-              <span className="price-tag-label">Total Price (incl. GST)</span>
+              <span className="price-tag-label">{t('products.price', {}, 'Total Price')} (incl. GST)</span>
               <span className="price-tag-value">₹{(product.totalPrice || ((product.price * product.quantity) + (product.taxAmount || 0))).toLocaleString('en-IN')}</span>
               {product.taxAmount !== null && product.taxAmount !== undefined ? (
                 <span className="price-tag-qty" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -443,7 +458,7 @@ export default function ProductDetail() {
                 </span>
               ) : (
                 product.quantity > 1 && (
-                  <span className="price-tag-qty">Quantity: {product.quantity}</span>
+                  <span className="price-tag-qty">{t('products.quantity', {}, 'Quantity')}: {product.quantity}</span>
                 )
               )}
             </div>
@@ -459,7 +474,7 @@ export default function ProductDetail() {
                   <Activity size={15} />
                   <span>{lifeScore.score}/100</span>
                 </div>
-                <span className="hero-score-grade">{lifeScore.grade}</span>
+                <span className="hero-score-grade">{t(`lifeScore.${lifeScore.grade.toLowerCase().replace(/\s+/g, '')}`, {}, lifeScore.grade)}</span>
               </div>
             )}
           </div>
@@ -472,61 +487,61 @@ export default function ProductDetail() {
           className={`product-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
           onClick={() => setActiveTab('overview')}
         >
-          <Layers size={16} /> Asset Overview
+          <Layers size={16} /> {t('products.overviewTab', {}, 'Asset Overview')}
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'intelligence' ? 'active' : ''}`}
           onClick={() => setActiveTab('intelligence')}
         >
-          <ShieldAlert size={16} /> Warranty Intelligence
+          <ShieldAlert size={16} /> {t('products.intelligenceTab', {}, 'Warranty Intelligence')}
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'ai' ? 'active' : ''}`}
           onClick={() => setActiveTab('ai')}
         >
-          <Bot size={16} /> AI Assistant
+          <Bot size={16} /> {t('products.aiAssistantTab', {}, 'AI Assistant')}
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'lifescore' ? 'active' : ''}`}
           onClick={() => setActiveTab('lifescore')}
         >
-          <TrendingUp size={16} /> Life Score ({lifeScore ? `${lifeScore.score}/100` : '...'})
+          <TrendingUp size={16} /> {t('products.lifeScoreTab', {}, 'Life Score')} ({lifeScore ? `${lifeScore.score}/100` : '...'})
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'warranties' ? 'active' : ''}`}
           onClick={() => setActiveTab('warranties')}
         >
-          <ShieldCheck size={16} /> Warranty Components ({warranties.length})
+          <ShieldCheck size={16} /> {t('products.warrantiesTab', {}, 'Warranty Components')} ({warranties.length})
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'service' ? 'active' : ''}`}
           onClick={() => setActiveTab('service')}
         >
-          <Wrench size={16} /> Service History ({serviceRecords.length})
+          <Wrench size={16} /> {t('products.servicesTab', {}, 'Service History')} ({serviceRecords.length})
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'maintenance' ? 'active' : ''}`}
           onClick={() => setActiveTab('maintenance')}
         >
-          <Sparkles size={16} /> Maintenance & Care ({maintenanceRecords.length})
+          <Sparkles size={16} /> {t('products.maintenanceTab', {}, 'Maintenance & Care')} ({maintenanceRecords.length})
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'accessories' ? 'active' : ''}`}
           onClick={() => setActiveTab('accessories')}
         >
-          <PlugZap size={16} /> Accessories ({accessories.length})
+          <PlugZap size={16} /> {t('accessories.title', {}, 'Accessories')} ({accessories.length})
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
           onClick={() => setActiveTab('timeline')}
         >
-          <History size={16} /> Lifecycle Timeline
+          <History size={16} /> {t('products.timelineTab', {}, 'Lifecycle Timeline')}
         </button>
         <button
           className={`product-tab-btn ${activeTab === 'documents' ? 'active' : ''}`}
           onClick={() => setActiveTab('documents')}
         >
-          <FileText size={16} /> Attached Documents ({documents.length})
+          <FileText size={16} /> {t('products.documentsTab', {}, 'Attached Documents')} ({documents.length})
         </button>
       </div>
 
@@ -534,7 +549,7 @@ export default function ProductDetail() {
       {activeTab === 'accessories' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <Card
-            title={`Compatible Accessories for ${product.brand} ${product.name}`}
+            title={`Compatible Accessories for ${product.brand} ${localizedProductName || product.name}`}
             subtitle={`Grounded in verified compatibility specifications for Model: ${product.model || 'Standard'}`}
             action={
               <Link to={`/accessories?productId=${product.id}`}>
@@ -544,7 +559,7 @@ export default function ProductDetail() {
               </Link>
             }
           >
-            {accessories.length === 0 ? (
+            {localizedAccessories.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px 16px' }}>
                 <PlugZap size={36} color="var(--text-muted)" style={{ marginBottom: '8px' }} />
                 <p style={{ color: 'var(--text-muted)', margin: 0 }}>
@@ -553,7 +568,7 @@ export default function ProductDetail() {
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {accessories.map((acc) => {
+                {localizedAccessories.map((acc) => {
                   const isCompat = acc.compatibilityStatus === 'Compatible';
                   return (
                     <div
@@ -653,7 +668,7 @@ export default function ProductDetail() {
         <ServiceHistoryList
           productId={product.id}
           productName={product.name}
-          serviceRecords={serviceRecords}
+          serviceRecords={localizedServiceRecords}
           onAddNew={() => {
             setSelectedServiceRecord(null);
             setIsServiceModalOpen(true);
@@ -792,19 +807,19 @@ export default function ProductDetail() {
                 </div>
                 <div className="detail-meta-row">
                   <span className="meta-label"><Store size={15} /> Store / Vendor:</span>
-                  <span className="meta-val">{product.seller || 'Not specified'}</span>
+                  <span className="meta-val">{localizedSeller || product.seller || 'Not specified'}</span>
                 </div>
                 {product.sellerAddress && (
                   <div className="detail-meta-row">
                     <span className="meta-label"><MapPin size={15} /> Store Address:</span>
-                    <span className="meta-val">{product.sellerAddress}</span>
+                    <span className="meta-val">{localizedSellerAddress || product.sellerAddress}</span>
                   </div>
                 )}
                 {product.paymentMethod && (
                   <div className="detail-meta-row">
                     <span className="meta-label"><CreditCard size={15} /> Payment Mode:</span>
                     <span className="meta-val">
-                      <Badge variant="info" size="sm">{product.paymentMethod}</Badge>
+                      <Badge variant="info" size="sm">{localizedPaymentMethod || product.paymentMethod}</Badge>
                     </span>
                   </div>
                 )}
@@ -882,7 +897,7 @@ export default function ProductDetail() {
             </div>
           ) : (
             <div className="warranty-components-grid">
-              {warranties.map((w) => {
+              {localizedWarranties.map((w) => {
                 const isExpiring = w.status === 'Expiring Soon';
                 const isExpired = w.status === 'Expired';
                 const statusBadge = isExpiring
@@ -1005,13 +1020,13 @@ export default function ProductDetail() {
       {activeTab === 'maintenance' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Preventive Recommendations Card */}
-          {recommendations.length > 0 && (
+          {localizedRecommendations.length > 0 && (
             <Card
               title="💡 Preventive Care & Service Recommendations"
               subtitle="Guidelines and suggested service intervals to maximize appliance lifespan"
             >
               <div className="maintenance-recs-grid">
-                {recommendations.map((rec) => (
+                {localizedRecommendations.map((rec) => (
                   <div key={rec.id} className="maintenance-rec-card">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <span className="rec-title">{rec.title}</span>
@@ -1048,7 +1063,7 @@ export default function ProductDetail() {
               </Button>
             }
           >
-            {maintenanceRecords.length === 0 ? (
+            {localizedMaintenance.length === 0 ? (
               <div className="tab-empty-state">
                 <Wrench size={36} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
                 <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
@@ -1071,7 +1086,7 @@ export default function ProductDetail() {
               </div>
             ) : (
               <div className="maint-records-list">
-                {maintenanceRecords.map((rec) => {
+                {localizedMaintenance.map((rec) => {
                   const isCompleted = rec.status === 'Completed';
                   const isOverdue = rec.status === 'Overdue';
                   const statusVariant = isCompleted ? 'active' : isOverdue ? 'danger' : 'warning';

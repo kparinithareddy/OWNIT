@@ -39,6 +39,7 @@ import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import Modal from '../../components/common/Modal';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
 import { productsApi, warrantiesApi, recallsApi } from '../../services/api';
+import { useLanguage, useLocalizedList } from '../../i18n/LanguageContext';
 import './Dashboard.css';
 
 // Helper to pick category icon
@@ -60,8 +61,11 @@ function getCategoryIcon(cat) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
   const [products, setProducts] = useState([]);
   const [warranties, setWarranties] = useState([]);
+  const localizedProducts = useLocalizedList(products, ['name', 'category', 'seller', 'notes']);
+  const localizedWarranties = useLocalizedList(warranties, ['type', 'benefits', 'exclusions', 'conditions', 'claimProcedure', 'serviceInformation', 'status']);
   const [lifeScoreMap, setLifeScoreMap] = useState({});
   const [vaultRecalls, setVaultRecalls] = useState([]);
   const [warrantySummary, setWarrantySummary] = useState({
@@ -123,7 +127,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
-      setError(err.message || 'Failed to connect to backend.');
+      setError(err.message || t('dashboard.errorTitle', {}, 'Failed to connect to backend.'));
     } finally {
       setLoading(false);
     }
@@ -147,35 +151,35 @@ export default function Dashboard() {
   // Product ID to warranty components map
   const productWarrantyMap = useMemo(() => {
     const map = {};
-    warranties.forEach((w) => {
+    localizedWarranties.forEach((w) => {
       if (!map[w.productId]) {
         map[w.productId] = [];
       }
       map[w.productId].push(w);
     });
     return map;
-  }, [warranties]);
+  }, [localizedWarranties]);
 
   // Expiring soon warranty items
   const expiringSoonWarranties = useMemo(() => {
-    return warranties.filter((w) => w.status === 'Expiring Soon');
-  }, [warranties]);
+    return localizedWarranties.filter((w) => w.status === 'Expiring Soon');
+  }, [localizedWarranties]);
 
   // Ending soon return window products
   const endingSoonReturns = useMemo(() => {
-    return products.filter((p) => p.returnStatus === 'Ending Soon');
-  }, [products]);
+    return localizedProducts.filter((p) => p.returnStatus === 'Ending Soon');
+  }, [localizedProducts]);
 
   const hasExpiringDeadlines = expiringSoonWarranties.length > 0 || endingSoonReturns.length > 0;
 
   // Filter products client-side for immediate responsive search/brand/category filtering
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    return localizedProducts.filter((p) => {
       const matchesSearch =
         !searchTerm.trim() ||
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.brand.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.model && p.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (p.serialNumber && p.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (p.seller && p.seller.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -187,17 +191,34 @@ export default function Dashboard() {
 
       return matchesSearch && matchesCategory && matchesBrand;
     });
-  }, [products, searchTerm, selectedCategory, selectedBrand]);
+  }, [localizedProducts, searchTerm, selectedCategory, selectedBrand]);
 
   const totalValue = products.reduce(
     (acc, p) => acc + (p.price * (p.quantity || 1)),
     0
   );
 
+  const getLocalizedGrade = (grade) => {
+    if (!grade) return '';
+    const lower = grade.toLowerCase().replace(/\s+/g, '');
+    if (lower.includes('excellent')) return t('lifeScore.excellent', {}, 'Excellent');
+    if (lower.includes('attention')) return t('lifeScore.needsAttention', {}, 'Needs Attention');
+    if (lower.includes('good')) return t('lifeScore.good', {}, 'Good');
+    if (lower.includes('fair')) return t('lifeScore.fair', {}, 'Fair');
+    if (lower.includes('critical')) return t('lifeScore.critical', {}, 'Critical');
+    return grade;
+  };
+
+  const getLocalizedCategoryName = (cat) => {
+    if (!cat) return '';
+    if (cat === 'All') return t('dashboard.allCategories', {}, 'All Categories');
+    return t(`categories.${cat}`, {}, cat);
+  };
+
   return (
     <PageContainer
-      title="Dashboard Overview"
-      subtitle="Track your physical assets, return deadlines, multi-component warranties, and upcoming expiration milestones."
+      title={t('dashboard.title', {}, 'Dashboard Overview')}
+      subtitle={t('dashboard.subtitle', {}, 'Track your physical assets, return deadlines, multi-component warranties, and upcoming expiration milestones.')}
       actions={
         <div className="dashboard-top-actions">
           <Button
@@ -205,14 +226,14 @@ export default function Dashboard() {
             icon={Camera}
             onClick={() => setIsScanModalOpen(true)}
           >
-            Scan Receipt (OCR)
+            {t('dashboard.scanReceiptBtn', {}, 'Scan Receipt (OCR)')}
           </Button>
           <Button
             variant="primary"
             icon={Plus}
             onClick={() => setIsAddModalOpen(true)}
           >
-            Add Product
+            {t('dashboard.addProductBtn', {}, 'Add Product')}
           </Button>
         </div>
       }
@@ -238,10 +259,10 @@ export default function Dashboard() {
             <AlertTriangle size={24} style={{ color: '#f59e0b', flexShrink: 0 }} />
             <div>
               <strong style={{ color: '#fbbf24', fontSize: '0.95rem' }}>
-                Safety Advisory: {vaultRecalls.length} product{vaultRecalls.length > 1 ? 's have' : ' has'} a possible recall match.
+                {t('dashboard.safetyAdvisoryTitle', { count: vaultRecalls.length }, `Safety Advisory: ${vaultRecalls.length} product(s) have a possible recall match.`)}
               </strong>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                Possible recall match — verify with the official source. Click on affected assets to view verified bulletins.
+                {t('dashboard.safetyAdvisoryDesc', {}, 'Possible recall match — verify with the official source. Click on affected assets to view verified bulletins.')}
               </div>
             </div>
           </div>
@@ -263,30 +284,30 @@ export default function Dashboard() {
       {/* 1. Summary Cards (4 Cards) */}
       <div className="dashboard-stats-grid">
         <StatCard
-          title="Total Products"
+          title={t('dashboard.totalProducts', {}, 'Total Products')}
           value={loading ? '...' : String(products.length)}
-          subtitle={products.length > 0 ? `Total Value: ₹${totalValue.toLocaleString('en-IN')}` : 'No products yet'}
+          subtitle={products.length > 0 ? t('dashboard.totalValue', { value: totalValue.toLocaleString('en-IN') }, `Total Value: ₹${totalValue.toLocaleString('en-IN')}`) : t('dashboard.noProductsYet', {}, 'No products yet')}
           icon={Package}
           variant="primary"
         />
         <StatCard
-          title="Active Warranties"
+          title={t('dashboard.activeWarranties', {}, 'Active Warranties')}
           value={loading ? '...' : String(warrantySummary.active)}
-          subtitle="🟢 Active & protected"
+          subtitle={t('dashboard.activeProtected', {}, '🟢 Active & protected')}
           icon={ShieldCheck}
           variant="success"
         />
         <StatCard
-          title="Expiring Soon"
+          title={t('dashboard.expiringSoon', {}, 'Expiring Soon')}
           value={loading ? '...' : String(warrantySummary.expiringSoon + endingSoonReturns.length)}
-          subtitle={`🟠 ${warrantySummary.expiringSoon} warranties & ${endingSoonReturns.length} returns`}
+          subtitle={t('dashboard.expiringSummary', { warranties: warrantySummary.expiringSoon, returns: endingSoonReturns.length }, `🟠 ${warrantySummary.expiringSoon} warranties & ${endingSoonReturns.length} returns`)}
           icon={Clock}
           variant="warning"
         />
         <StatCard
-          title="Expired"
+          title={t('dashboard.expired', {}, 'Expired')}
           value={loading ? '...' : String(warrantySummary.expired)}
-          subtitle="🔴 Out of coverage"
+          subtitle={t('dashboard.outOfCoverage', {}, '🔴 Out of coverage')}
           icon={ShieldAlert}
           variant="danger"
         />
@@ -294,8 +315,8 @@ export default function Dashboard() {
 
       {/* 2. Expiring Soon Section */}
       <Card
-        title="⏳ Expiring Soon (Warranties & Return Deadlines)"
-        subtitle="Monitors critical warranty components and store return windows requiring attention soon"
+        title={t('dashboard.expiringSectionTitle', {}, '⏳ Expiring Soon (Warranties & Return Deadlines)')}
+        subtitle={t('dashboard.expiringSectionSubtitle', {}, 'Monitors critical warranty components and store return windows requiring attention soon')}
         className="expiring-section-card"
       >
         {!hasExpiringDeadlines ? (
@@ -304,9 +325,9 @@ export default function Dashboard() {
               <Clock size={28} />
             </div>
             <div className="expiring-placeholder-text">
-              <h4 className="expiring-placeholder-title">No Deadlines Expiring Soon</h4>
+              <h4 className="expiring-placeholder-title">{t('dashboard.noDeadlinesTitle', {}, 'No Deadlines Expiring Soon')}</h4>
               <p className="expiring-placeholder-desc">
-                All your warranties and store return windows are in good standing. When return windows or warranties have 30 or fewer days remaining, active countdown alerts will appear here.
+                {t('dashboard.noDeadlinesDesc', {}, 'All your warranties and store return windows are in good standing. When return windows or warranties have 30 or fewer days remaining, active countdown alerts will appear here.')}
               </p>
             </div>
           </div>
@@ -330,10 +351,14 @@ export default function Dashboard() {
                   <RotateCcw size={22} color="#f59e0b" />
                   <div>
                     <h5 style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>
-                      Return Window Closing: {prod.name}
+                      {t('dashboard.returnClosingTitle', { name: prod.name }, `Return Window Closing: ${prod.name}`)}
                     </h5>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                      Deadline: <strong>{prod.returnDeadline}</strong> ({prod.returnDaysRemaining === 0 ? 'Ends Today' : `${prod.returnDaysRemaining} days left`}) &bull; Seller: {prod.seller || 'Store'}
+                      {t('dashboard.returnDeadlineInfo', {
+                        date: prod.returnDeadline,
+                        days: prod.returnDaysRemaining === 0 ? t('dashboard.returnEndsToday', {}, 'Ends Today') : t('dashboard.daysLeft', { days: prod.returnDaysRemaining }, `${prod.returnDaysRemaining} days left`),
+                        seller: prod.seller || 'Store'
+                      }, `Deadline: ${prod.returnDeadline} • Seller: ${prod.seller || 'Store'}`)}
                     </p>
                   </div>
                 </div>
@@ -343,7 +368,7 @@ export default function Dashboard() {
                   size="sm"
                   onClick={() => navigate(`/products/${prod.id}`)}
                 >
-                  View Product
+                  {t('dashboard.viewProduct', {}, 'View Product')}
                 </Button>
               </div>
             ))}
@@ -371,7 +396,7 @@ export default function Dashboard() {
                         {prod ? prod.name : 'Linked Product'} — {w.type}
                       </h5>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                        Provider: <strong>{w.provider}</strong> &bull; Expires on: <strong>{w.expiryDate}</strong> ({w.daysRemaining} days remaining)
+                        {t('dashboard.providerInfo', { provider: w.provider }, `Provider: ${w.provider}`)} &bull; {t('dashboard.expiresOn', { date: w.expiryDate }, `Expires on: ${w.expiryDate}`)} ({t('dashboard.daysRemaining', { days: w.daysRemaining }, `${w.daysRemaining} days remaining`)})
                       </p>
                     </div>
                   </div>
@@ -381,7 +406,7 @@ export default function Dashboard() {
                     size="sm"
                     onClick={() => navigate(`/products/${w.productId}`)}
                   >
-                    View Warranty
+                    {t('dashboard.viewWarranty', {}, 'View Warranty')}
                   </Button>
                 </div>
               );
@@ -396,7 +421,7 @@ export default function Dashboard() {
           <Search size={16} className="dashboard-search-icon" />
           <input
             type="text"
-            placeholder="Search by product name, brand, model, serial #..."
+            placeholder={t('dashboard.searchPlaceholder', {}, 'Search by product name, brand, model, serial #...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="dashboard-search-input"
@@ -406,22 +431,22 @@ export default function Dashboard() {
         <div className="dashboard-dropdown-filters">
           {/* Category Filter Dropdown */}
           <div className="filter-dropdown-item">
-            <label className="dropdown-label"><Layers size={13} /> Category:</label>
+            <label className="dropdown-label"><Layers size={13} /> {t('dashboard.categoryLabel', {}, 'Category:')}</label>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="dashboard-select"
             >
-              <option value="All">All Categories</option>
+              <option value="All">{t('dashboard.allCategories', {}, 'All Categories')}</option>
               {PRODUCT_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat} value={cat}>{getLocalizedCategoryName(cat)}</option>
               ))}
             </select>
           </div>
 
           {/* Brand Filter Dropdown */}
           <div className="filter-dropdown-item">
-            <label className="dropdown-label"><Tag size={13} /> Brand:</label>
+            <label className="dropdown-label"><Tag size={13} /> {t('dashboard.brandLabel', {}, 'Brand:')}</label>
             <select
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
@@ -429,7 +454,7 @@ export default function Dashboard() {
             >
               {availableBrands.map((brand) => (
                 <option key={brand} value={brand}>
-                  {brand === 'All' ? 'All Brands' : brand}
+                  {brand === 'All' ? t('dashboard.allBrands', {}, 'All Brands') : brand}
                 </option>
               ))}
             </select>
@@ -441,9 +466,9 @@ export default function Dashboard() {
       <div className="dashboard-products-section">
         <div className="section-header-row">
           <div>
-            <h3 className="section-title">My Registered Assets</h3>
+            <h3 className="section-title">{t('dashboard.registeredAssetsTitle', {}, 'My Registered Assets')}</h3>
             <p className="section-subtitle">
-              Showing {filteredProducts.length} of {products.length} registered item(s)
+              {t('dashboard.showingAssetsSubtitle', { filtered: filteredProducts.length, total: products.length }, `Showing ${filteredProducts.length} of ${products.length} registered item(s)`)}
             </p>
           </div>
           {products.length > 0 && (
@@ -454,19 +479,22 @@ export default function Dashboard() {
               iconPosition="right"
               onClick={() => navigate('/products')}
             >
-              Manage Catalog
+              {t('dashboard.manageCatalog', {}, 'Manage Catalog')}
             </Button>
           )}
         </div>
 
         {loading ? (
-          <LoadingState message="Loading your dashboard..." description="Fetching assets from database..." />
+          <LoadingState
+            message={t('dashboard.loadingMessage', {}, 'Loading your dashboard...')}
+            description={t('dashboard.loadingDescription', {}, 'Fetching assets from database...')}
+          />
         ) : error ? (
           <div className="dashboard-error-box">
             <AlertCircle size={24} color="var(--danger)" />
             <p>{error}</p>
             <Button variant="outline" size="sm" onClick={fetchDashboardData}>
-              Retry
+              {t('common.retry', {}, 'Retry')}
             </Button>
           </div>
         ) : products.length === 0 ? (
@@ -476,9 +504,9 @@ export default function Dashboard() {
               <div className="empty-icon-circle">
                 <Package size={36} />
               </div>
-              <h4 className="empty-title">Welcome to OWNIT!</h4>
+              <h4 className="empty-title">{t('dashboard.welcomeTitle', {}, 'Welcome to OWNIT!')}</h4>
               <p className="empty-desc">
-                You haven't registered any physical products yet. Start by adding your electronics, home appliances, or mobile devices to track their full lifecycle.
+                {t('dashboard.welcomeDesc', {}, "You haven't registered any physical products yet. Start by adding your electronics, home appliances, or mobile devices to track their full lifecycle.")}
               </p>
               <Button
                 variant="primary"
@@ -486,7 +514,7 @@ export default function Dashboard() {
                 size="md"
                 onClick={() => setIsAddModalOpen(true)}
               >
-                Add Your First Product
+                {t('dashboard.addFirstProduct', {}, 'Add Your First Product')}
               </Button>
             </div>
           </Card>
@@ -495,9 +523,9 @@ export default function Dashboard() {
           <Card className="dashboard-empty-card">
             <div className="empty-onboarding-box">
               <Package size={32} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
-              <h4 className="empty-title">No products match your filters</h4>
+              <h4 className="empty-title">{t('dashboard.noMatchTitle', {}, 'No products match your filters')}</h4>
               <p className="empty-desc">
-                Try clearing your search query, category, or brand filter.
+                {t('dashboard.noMatchDesc', {}, 'Try clearing your search query, category, or brand filter.')}
               </p>
               <Button
                 variant="outline"
@@ -508,7 +536,7 @@ export default function Dashboard() {
                   setSelectedBrand('All');
                 }}
               >
-                Reset All Filters
+                {t('dashboard.resetFilters', {}, 'Reset All Filters')}
               </Button>
             </div>
           </Card>
@@ -522,25 +550,27 @@ export default function Dashboard() {
               const hasActive = pWarranties.some((w) => w.status === 'Active');
               const allExpired = pWarranties.length > 0 && pWarranties.every((w) => w.status === 'Expired');
 
-              let warrantyBadgeLabel = 'No Warranty';
+              let warrantyBadgeLabel = t('dashboard.noWarrantyBadge', {}, 'No Warranty');
               if (hasExpiring) {
-                warrantyBadgeLabel = '🟠 Warranty Expiring Soon';
+                warrantyBadgeLabel = t('dashboard.warrantyExpiringBadge', {}, '🟠 Warranty Expiring Soon');
               } else if (hasActive) {
-                warrantyBadgeLabel = '🟢 Warranty Active';
+                warrantyBadgeLabel = t('dashboard.warrantyActiveBadge', {}, '🟢 Warranty Active');
               } else if (allExpired) {
-                warrantyBadgeLabel = '🔴 Warranty Expired';
+                warrantyBadgeLabel = t('dashboard.warrantyExpiredBadge', {}, '🔴 Warranty Expired');
               }
 
               // Return badge
               const retStatus = product.returnStatus;
               let returnBadgeLabel = null;
               if (retStatus === 'Active') {
-                returnBadgeLabel = `🟢 Return: ${product.returnDaysRemaining}d left`;
+                returnBadgeLabel = t('dashboard.returnActiveBadge', { days: product.returnDaysRemaining }, `🟢 Return: ${product.returnDaysRemaining}d left`);
               } else if (retStatus === 'Ending Soon') {
-                returnBadgeLabel = `🟠 Return Ends: ${product.returnDaysRemaining}d`;
+                returnBadgeLabel = t('dashboard.returnEndingBadge', { days: product.returnDaysRemaining }, `🟠 Return Ends: ${product.returnDaysRemaining}d`);
               } else if (retStatus === 'Expired') {
-                returnBadgeLabel = '🔴 Return Closed';
+                returnBadgeLabel = t('dashboard.returnClosedBadge', {}, '🔴 Return Closed');
               }
+
+              const categoryName = getLocalizedCategoryName(product.category);
 
               return (
                 <Card
@@ -571,7 +601,7 @@ export default function Dashboard() {
                     </div>
 
                     <div className="item-badges-column">
-                      <span className="category-pill">{product.category}</span>
+                      <span className="category-pill">{categoryName}</span>
                       {returnBadgeLabel && (
                         <span className="warranty-status-pill" title="Store Return Status" style={{ fontSize: '0.6875rem' }}>
                           {returnBadgeLabel}
@@ -592,12 +622,12 @@ export default function Dashboard() {
                   <div className="item-card-details">
                     <div className="item-meta-row">
                       <Calendar size={13} />
-                      <span>Purchased: {product.purchaseDate}</span>
+                      <span>{t('dashboard.purchasedDate', { date: product.purchaseDate }, `Purchased: ${product.purchaseDate}`)}</span>
                     </div>
                     {product.seller && (
                       <div className="item-meta-row">
                         <Store size={13} />
-                        <span>Seller: {product.seller}</span>
+                        <span>{t('dashboard.sellerName', { seller: product.seller }, `Seller: ${product.seller}`)}</span>
                       </div>
                     )}
                   </div>
@@ -612,16 +642,16 @@ export default function Dashboard() {
                     {lifeScoreMap[product.id] ? (
                       <div
                         className={`dashboard-life-score-pill ${lifeScoreMap[product.id].color}`}
-                        title={`Life Score: ${lifeScoreMap[product.id].score}/100 (${lifeScoreMap[product.id].grade})`}
+                        title={`Life Score: ${lifeScoreMap[product.id].score}/100 (${getLocalizedGrade(lifeScoreMap[product.id].grade)})`}
                       >
                         <Activity size={12} />
                         <span className="dash-score-num">{lifeScoreMap[product.id].score}</span>
-                        <span className="dash-score-grade">{lifeScoreMap[product.id].grade}</span>
+                        <span className="dash-score-grade">{getLocalizedGrade(lifeScoreMap[product.id].grade)}</span>
                       </div>
                     ) : (
                       <div className="life-score-placeholder" title="Warranty Components">
-                        <span className="score-label">Coverage:</span>
-                        <span className="score-badge">{pWarranties.length} Tier(s)</span>
+                        <span className="score-label">{t('dashboard.coverageLabel', {}, 'Coverage:')}</span>
+                        <span className="score-badge">{t('dashboard.tierCount', { count: pWarranties.length }, `${pWarranties.length} Tier(s)`)}</span>
                       </div>
                     )}
                   </div>

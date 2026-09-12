@@ -13,7 +13,8 @@ from app.api.v1.endpoints import (
     claim_assistant,
     service_history,
     accessories,
-    safety_recalls
+    safety_recalls,
+    translation
 )
 
 api_v1_router = APIRouter()
@@ -33,6 +34,7 @@ api_v1_router.include_router(safety_recalls.router, prefix="/safety-recalls", ta
 api_v1_router.include_router(ai.router, prefix="/ai", tags=["Local AI (Ollama)"])
 api_v1_router.include_router(warranty_intelligence.router, prefix="/warranty-intelligence", tags=["Warranty Intelligence"])
 api_v1_router.include_router(claim_assistant.router, prefix="/claim-assistant", tags=["Warranty Claim Assistant"])
+api_v1_router.include_router(translation.router, prefix="/translation", tags=["Translation & Localization"])
 
 
 

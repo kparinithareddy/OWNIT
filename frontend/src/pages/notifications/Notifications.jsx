@@ -21,6 +21,7 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import LoadingState from '../../components/common/LoadingState';
 import { notificationsApi } from '../../services/api';
+import { useLanguage, useLocalizedList } from '../../i18n/LanguageContext';
 import './Notifications.css';
 
 function getNotificationVisuals(type) {
@@ -72,7 +73,9 @@ function getNotificationVisuals(type) {
 
 export default function Notifications() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState([]);
+  const localizedNotifications = useLocalizedList(notifications, ['message']);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isChecking, setIsChecking] = useState(false);
@@ -184,29 +187,29 @@ export default function Notifications() {
       </div>
 
       {loading ? (
-        <LoadingState message="Loading notifications..." description="Checking warranty reminders..." />
+        <LoadingState message={t('common.loading') || "Loading notifications..."} description="Checking warranty reminders..." />
       ) : error ? (
         <Card>
           <div style={{ padding: '16px', color: 'var(--danger)' }}>{error}</div>
         </Card>
-      ) : notifications.length === 0 ? (
+      ) : localizedNotifications.length === 0 ? (
         <Card>
           <div className="notif-empty-box">
             <Inbox size={40} style={{ color: 'var(--text-light)', marginBottom: '8px' }} />
             <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
-              {unreadOnly ? 'No unread notifications' : 'No notifications yet'}
+              {unreadOnly ? (t('notifications.emptyTitle') || 'No unread notifications') : (t('notifications.emptyTitle') || 'No notifications yet')}
             </h4>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', maxWidth: '420px', margin: '4px auto 16px' }}>
-              When your products approach their 30-day, 15-day, 7-day, or 1-day warranty milestones, automated in-app alerts will be displayed here.
+              {t('notifications.emptyDesc') || 'When your products approach their warranty milestones, automated in-app alerts will be displayed here.'}
             </p>
             <Button variant="outline" size="sm" onClick={() => navigate('/products')}>
-              Manage Registered Products
+              {t('nav.products') || 'Manage Registered Products'}
             </Button>
           </div>
         </Card>
       ) : (
         <div className="notifications-container">
-          {notifications.map((notif) => {
+          {localizedNotifications.map((notif) => {
             const visuals = getNotificationVisuals(notif.type);
             const IconComp = visuals.icon;
 

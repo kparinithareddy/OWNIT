@@ -18,6 +18,7 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import LoadingState from '../../components/common/LoadingState';
 import { warrantiesApi, productsApi } from '../../services/api';
+import { useLanguage, useLocalizedList } from '../../i18n/LanguageContext';
 import './WarrantyTracker.css';
 
 function parseList(val) {
@@ -31,8 +32,10 @@ function parseList(val) {
 
 export default function WarrantyTracker() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [filter, setFilter] = useState('All'); // 'All' | 'Active' | 'Expiring Soon' | 'Expired'
   const [warranties, setWarranties] = useState([]);
+  const localizedWarranties = useLocalizedList(warranties, ['benefits', 'exclusions', 'conditions', 'type']);
   const [productsMap, setProductsMap] = useState({});
   const [summary, setSummary] = useState({
     totalWarranties: 0,
@@ -82,45 +85,52 @@ export default function WarrantyTracker() {
     fetchWarrantiesData();
   }, []);
 
-  const filteredItems = (Array.isArray(warranties) ? warranties : []).filter((item) => {
+  const filteredItems = (Array.isArray(localizedWarranties) ? localizedWarranties : []).filter((item) => {
     if (filter === 'All') return true;
     return item.status === filter;
   });
 
+  const getLocalizedStatus = (status) => {
+    if (status === 'Active') return t('common.active', {}, 'Active');
+    if (status === 'Expiring Soon') return t('common.expiringSoon', {}, 'Expiring Soon');
+    if (status === 'Expired') return t('common.expired', {}, 'Expired');
+    return status || t('common.active', {}, 'Active');
+  };
+
   return (
     <PageContainer
-      title="Warranty & Coverage Tracker"
-      subtitle="Monitor multi-component coverage validity, expiration countdowns, and service details across all purchases."
+      title={t('warranty.title', {}, 'Warranty Tracker')}
+      subtitle={t('warranty.subtitle', {}, 'Monitor guarantee coverage windows, components, and impending expirations.')}
       actions={
         <Button
           variant="primary"
           icon={Package}
           onClick={() => navigate('/products')}
         >
-          View Registered Assets
+          {t('nav.products', {}, 'View Registered Assets')}
         </Button>
       }
     >
       {/* Metric Cards */}
       <div className="warranty-stats-grid">
         <StatCard
-          title="Active Coverage"
-          value={loading ? '...' : `${summary.active} Components`}
-          subtitle="🟢 Active & valid protection"
+          title={t('warranty.confirmedCoverage', {}, 'Active Coverage')}
+          value={loading ? '...' : `${summary.active} ${t('dashboard.tierCount', { count: summary.active }, 'Components')}`}
+          subtitle={t('dashboard.activeProtected', {}, '🟢 Active & protected')}
           icon={ShieldCheck}
           variant="success"
         />
         <StatCard
-          title="Expiring Within 30 Days"
-          value={loading ? '...' : `${summary.expiringSoon} Components`}
-          subtitle="🟠 Action required soon"
+          title={t('dashboard.expiringSoon', {}, 'Expiring Soon')}
+          value={loading ? '...' : `${summary.expiringSoon} ${t('dashboard.tierCount', { count: summary.expiringSoon }, 'Components')}`}
+          subtitle={t('common.expiringSoon', {}, '🟠 Action required soon')}
           icon={ShieldAlert}
           variant="warning"
         />
         <StatCard
-          title="Expired Coverage"
-          value={loading ? '...' : `${summary.expired} Components`}
-          subtitle="🔴 Out of warranty period"
+          title={t('common.expired', {}, 'Expired Coverage')}
+          value={loading ? '...' : `${summary.expired} ${t('dashboard.tierCount', { count: summary.expired }, 'Components')}`}
+          subtitle={t('dashboard.outOfCoverage', {}, '🔴 Out of coverage')}
           icon={Clock}
           variant="danger"
         />
@@ -132,30 +142,30 @@ export default function WarrantyTracker() {
           className={`warranty-filter-btn ${filter === 'All' ? 'active' : ''}`}
           onClick={() => setFilter('All')}
         >
-          All Components ({warranties.length})
+          {t('common.all', {}, 'All')} ({warranties.length})
         </button>
         <button
           className={`warranty-filter-btn ${filter === 'Active' ? 'active' : ''}`}
           onClick={() => setFilter('Active')}
         >
-          🟢 Active ({summary.active})
+          🟢 {t('common.active', {}, 'Active')} ({summary.active})
         </button>
         <button
           className={`warranty-filter-btn ${filter === 'Expiring Soon' ? 'active' : ''}`}
           onClick={() => setFilter('Expiring Soon')}
         >
-          🟠 Expiring Soon ({summary.expiringSoon})
+          🟠 {t('common.expiringSoon', {}, 'Expiring Soon')} ({summary.expiringSoon})
         </button>
         <button
           className={`warranty-filter-btn ${filter === 'Expired' ? 'active' : ''}`}
           onClick={() => setFilter('Expired')}
         >
-          🔴 Expired ({summary.expired})
+          🔴 {t('common.expired', {}, 'Expired')} ({summary.expired})
         </button>
       </div>
 
       {loading ? (
-        <LoadingState message="Loading warranty tracker..." description="Calculating coverage periods..." />
+        <LoadingState message={t('common.loading', {}, 'Loading warranty tracker...')} description="Calculating coverage periods..." />
       ) : error ? (
         <div className="dashboard-error-box" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '16px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px' }}>
           <AlertCircle size={20} />
@@ -166,13 +176,13 @@ export default function WarrantyTracker() {
           <div style={{ textAlign: 'center', padding: '36px 16px' }}>
             <ShieldCheck size={40} style={{ color: 'var(--text-light)', marginBottom: '10px' }} />
             <h4 style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'var(--text-main)' }}>
-              {filter === 'All' ? 'No warranty components registered yet' : `No ${filter.toLowerCase()} warranties`}
+              {filter === 'All' ? t('common.empty', {}, 'No warranty components registered yet') : `${getLocalizedStatus(filter)}`}
             </h4>
             <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', maxWidth: '440px', margin: '6px auto 16px' }}>
-              Open any registered product and click "+ Add Warranty" to record comprehensive, panel, compressor, or extended warranties.
+              {t('warranty.disclaimer', {}, 'Open any registered product to record comprehensive, panel, compressor, or extended warranties.')}
             </p>
             <Button variant="primary" onClick={() => navigate('/products')}>
-              Browse Registered Products
+              {t('nav.products', {}, 'Browse Registered Products')}
             </Button>
           </div>
         </Card>
@@ -207,23 +217,23 @@ export default function WarrantyTracker() {
                           </Badge>
                         )}
                         <Badge variant={badgeVariant} size="sm" dot>
-                          {item.status || 'Active'}{daysRemainingText ? ` (${daysRemainingText})` : ''}
+                          {getLocalizedStatus(item.status)}{daysRemainingText ? ` (${daysRemainingText})` : ''}
                         </Badge>
                       </div>
                       <p className="warranty-provider-text">
-                        Provider: <strong>{item.provider || 'Manufacturer'}</strong>{item.duration ? ` • Duration: ${item.duration}` : ''}
-                        {product && product.brand ? ` • Brand: ${product.brand}` : ''}
+                        {t('warranty.provider', {}, 'Provider')}: <strong>{item.provider || 'Manufacturer'}</strong>{item.duration ? ` • ${t('warranty.duration', {}, 'Duration')}: ${item.duration}` : ''}
+                        {product && product.brand ? ` • ${t('products.brand', {}, 'Brand')}: ${product.brand}` : ''}
                       </p>
                     </div>
                   </div>
 
                   <div className="warranty-dates-box">
                     <div className="date-block">
-                      <span className="date-label">Start Date</span>
+                      <span className="date-label">{t('timeline.warrantyStart', {}, 'Start Date')}</span>
                       <span className="date-val">{item.startDate || 'N/A'}</span>
                     </div>
                     <div className="date-block">
-                      <span className="date-label">Expires On</span>
+                      <span className="date-label">{t('dashboard.expiresOn', { date: '' }).replace('{date}', '').replace(':', '').trim() || 'Expires On'}</span>
                       <span className={`date-val ${isExpiring ? 'expiry-highlight' : ''}`}>
                         {item.expiryDate || 'N/A'}
                       </span>
@@ -235,7 +245,7 @@ export default function WarrantyTracker() {
                   <div className="inclusions-pill-row">
                     {benefitsList.length > 0 ? (
                       <>
-                        <span className="inclusions-label">Inclusions:</span>
+                        <span className="inclusions-label">{t('warranty.benefits', {}, 'Inclusions')}:</span>
                         {benefitsList.map((inc, i) => (
                           <span key={i} className="inc-tag">✓ {inc}</span>
                         ))}
@@ -252,7 +262,7 @@ export default function WarrantyTracker() {
                       size="sm"
                       onClick={() => navigate(item.productId ? `/products/${item.productId}` : '/products')}
                     >
-                      View Product & Claims
+                      {t('dashboard.viewProduct', {}, 'View Product')}
                     </Button>
                   </div>
                 </div>

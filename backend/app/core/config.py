@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2"
     OLLAMA_TIMEOUT_SECONDS: float = 120.0
 
+    # Google Cloud Translation Settings (Secure backend API key)
+    GOOGLE_TRANSLATE_API_KEY: str = ""
+    GOOGLE_TRANSLATE_TIMEOUT_SECONDS: float = 10.0
+
 
     model_config = SettingsConfigDict(
         env_file=".env",

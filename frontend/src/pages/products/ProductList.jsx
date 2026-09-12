@@ -41,7 +41,7 @@ import ProductFormModal from '../../components/products/ProductFormModal';
 import ReceiptScannerModal from '../../components/ocr/ReceiptScannerModal';
 import { PRODUCT_CATEGORIES } from '../../data/categories';
 import { productsApi } from '../../services/api';
-import { useLanguage } from '../../i18n/LanguageContext';
+import { useLanguage, useLocalizedList } from '../../i18n/LanguageContext';
 import './ProductList.css';
 
 // Helper to pick category icon
@@ -66,6 +66,7 @@ export default function ProductList() {
   const { t } = useLanguage();
 
   const [products, setProducts] = useState([]);
+  const localizedProducts = useLocalizedList(products, ['name', 'category', 'seller']);
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -187,10 +188,16 @@ export default function ProductList() {
 
   const categories = ['All', ...PRODUCT_CATEGORIES];
 
+  const getLocalizedCategoryName = (cat) => {
+    if (!cat) return '';
+    if (cat === 'All') return t('products.allCategories', {}, 'All Categories');
+    return t(`categories.${cat}`, {}, cat);
+  };
+
   return (
     <PageContainer
-      title={t('products.title') || 'My Products & Assets'}
-      subtitle={t('products.subtitle') || 'Catalog, manage, and track all your physical items securely.'}
+      title={t('products.title', {}, 'Product Inventory')}
+      subtitle={t('products.subtitle', {}, 'Manage and monitor all your physical electronics, appliances, and assets.')}
       actions={
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <Button
@@ -198,14 +205,14 @@ export default function ProductList() {
             icon={<Sparkles size={16} />}
             onClick={() => setIsScannerOpen(true)}
           >
-            {t('products.scanReceipt') || 'Scan Receipt'}
+            {t('products.scanReceipt', {}, 'Scan Receipt')}
           </Button>
           <Button
             variant="primary"
             icon={<Plus size={16} />}
             onClick={handleOpenAdd}
           >
-            {t('products.addNewProduct') || 'Add Product'}
+            {t('products.addNewProduct', {}, 'Add Product')}
           </Button>
         </div>
       }
@@ -218,7 +225,7 @@ export default function ProductList() {
             <Search size={16} className="product-search-icon" />
             <input
               type="text"
-              placeholder={t('products.searchPlaceholder') || 'Search by product name, brand, model, or serial number...'}
+              placeholder={t('products.searchPlaceholder', {}, 'Search by product name, brand, model, or serial number...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="product-search-input"
@@ -242,19 +249,19 @@ export default function ProductList() {
               onChange={(e) => setSortOption(e.target.value)}
               className="product-filter-select"
             >
-              <option value="createdAt:desc">{t('products.newestFirst') || 'Newest Added'}</option>
-              <option value="createdAt:asc">{t('products.oldestFirst') || 'Oldest Added'}</option>
-              <option value="price:desc">{t('products.priceHighLow') || 'Price: High to Low'}</option>
-              <option value="price:asc">{t('products.priceLowHigh') || 'Price: Low to High'}</option>
-              <option value="name:asc">{t('products.nameAsc') || 'Name: A to Z'}</option>
-              <option value="purchaseDate:desc">{t('products.purchaseDateDesc') || 'Purchase Date: Newest'}</option>
+              <option value="createdAt:desc">{t('products.newestFirst', {}, 'Newest Added')}</option>
+              <option value="createdAt:asc">{t('products.oldestFirst', {}, 'Oldest Added')}</option>
+              <option value="price:desc">{t('products.priceHighLow', {}, 'Price: High to Low')}</option>
+              <option value="price:asc">{t('products.priceLowHigh', {}, 'Price: Low to High')}</option>
+              <option value="name:asc">{t('products.nameAsc', {}, 'Name: A to Z')}</option>
+              <option value="purchaseDate:desc">{t('products.purchaseDateDesc', {}, 'Purchase Date: Newest')}</option>
             </select>
           </div>
         </div>
 
         {/* Category Pill Filters */}
         <div className="filter-group-category">
-          <span className="filter-label"><Layers size={14} /> {t('products.filterCategory') || 'Category'}:</span>
+          <span className="filter-label"><Layers size={14} /> {t('products.filterCategory', {}, 'Category')}:</span>
           <div className="filter-pills">
             {categories.map((cat) => (
               <button
@@ -263,7 +270,7 @@ export default function ProductList() {
                 className={`filter-pill ${selectedCategory === cat ? 'filter-pill-active' : ''}`}
                 onClick={() => setSelectedCategory(cat)}
               >
-                {cat}
+                {getLocalizedCategoryName(cat)}
               </button>
             ))}
           </div>
@@ -273,13 +280,13 @@ export default function ProductList() {
         <div className="product-filter-dropdowns-row">
           {/* Brand Filter */}
           <div className="filter-select-wrapper">
-            <span className="filter-mini-label"><Tag size={12} /> {t('products.filterBrand') || 'Brand'}</span>
+            <span className="filter-mini-label"><Tag size={12} /> {t('products.filterBrand', {}, 'Brand')}</span>
             <select
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
               className="product-filter-select"
             >
-              <option value="All">{t('products.allBrands') || 'All Brands'}</option>
+              <option value="All">{t('products.allBrands', {}, 'All Brands')}</option>
               {brands.map((b) => (
                 <option key={b} value={b}>{b}</option>
               ))}
@@ -288,45 +295,45 @@ export default function ProductList() {
 
           {/* Warranty Filter */}
           <div className="filter-select-wrapper">
-            <span className="filter-mini-label"><ShieldCheck size={12} /> {t('products.filterWarranty') || 'Warranty'}</span>
+            <span className="filter-mini-label"><ShieldCheck size={12} /> {t('products.filterWarranty', {}, 'Warranty')}</span>
             <select
               value={warrantyStatus}
               onChange={(e) => setWarrantyStatus(e.target.value)}
               className="product-filter-select"
             >
-              <option value="all">{t('products.allWarranties') || 'All Warranties'}</option>
-              <option value="active">🟢 {t('products.activeWarranty') || 'Active Coverage'}</option>
-              <option value="expiring_soon">🟠 {t('products.expiringSoonWarranty') || 'Expiring Soon (≤30d)'}</option>
-              <option value="expired">🔴 {t('products.expiredWarranty') || 'Expired Warranty'}</option>
+              <option value="all">{t('products.allWarranties', {}, 'All Warranties')}</option>
+              <option value="active">🟢 {t('products.activeWarranty', {}, 'Active Coverage')}</option>
+              <option value="expiring_soon">🟠 {t('products.expiringSoonWarranty', {}, 'Expiring Soon (≤30d)')}</option>
+              <option value="expired">🔴 {t('products.expiredWarranty', {}, 'Expired Warranty')}</option>
             </select>
           </div>
 
           {/* Return Window Filter */}
           <div className="filter-select-wrapper">
-            <span className="filter-mini-label"><Clock size={12} /> {t('products.filterReturn') || 'Return Window'}</span>
+            <span className="filter-mini-label"><Clock size={12} /> {t('products.filterReturn', {}, 'Return Window')}</span>
             <select
               value={returnStatus}
               onChange={(e) => setReturnStatus(e.target.value)}
               className="product-filter-select"
             >
-              <option value="all">{t('products.allReturns') || 'All Returns'}</option>
-              <option value="active">🟢 {t('products.activeReturn') || 'Active Return Window'}</option>
-              <option value="expired">🔴 {t('products.expiredReturn') || 'Return Window Closed'}</option>
+              <option value="all">{t('products.allReturns', {}, 'All Returns')}</option>
+              <option value="active">🟢 {t('products.activeReturn', {}, 'Active Return Window')}</option>
+              <option value="expired">🔴 {t('products.expiredReturn', {}, 'Return Window Closed')}</option>
             </select>
           </div>
 
           {/* Maintenance Status Filter */}
           <div className="filter-select-wrapper">
-            <span className="filter-mini-label"><Wrench size={12} /> {t('products.filterMaintenance') || 'Maintenance'}</span>
+            <span className="filter-mini-label"><Wrench size={12} /> {t('products.filterMaintenance', {}, 'Maintenance')}</span>
             <select
               value={maintenanceStatus}
               onChange={(e) => setMaintenanceStatus(e.target.value)}
               className="product-filter-select"
             >
-              <option value="all">{t('products.allMaintenance') || 'All Maintenance'}</option>
-              <option value="due">🟠 {t('products.maintenanceDue') || 'Due Soon / Needs Attention'}</option>
-              <option value="overdue">🔴 {t('products.maintenanceOverdue') || 'Overdue Maintenance'}</option>
-              <option value="up_to_date">🟢 {t('products.maintenanceUpToDate') || 'Up to Date'}</option>
+              <option value="all">{t('products.allMaintenance', {}, 'All Maintenance')}</option>
+              <option value="due">🟠 {t('products.maintenanceDue', {}, 'Due Soon / Needs Attention')}</option>
+              <option value="overdue">🔴 {t('products.maintenanceOverdue', {}, 'Overdue Maintenance')}</option>
+              <option value="up_to_date">🟢 {t('products.maintenanceUpToDate', {}, 'Up to Date')}</option>
             </select>
           </div>
         </div>
@@ -335,7 +342,7 @@ export default function ProductList() {
         {hasActiveFilters && (
           <div className="active-filters-bar">
             <div className="active-filters-chips">
-              <span className="active-filters-title">{t('products.activeFilters') || 'Active Filters'}:</span>
+              <span className="active-filters-title">{t('products.activeFilters', {}, 'Active Filters')}:</span>
 
               {searchTerm && (
                 <span className="filter-chip">
@@ -346,35 +353,35 @@ export default function ProductList() {
 
               {selectedCategory !== 'All' && (
                 <span className="filter-chip">
-                  {selectedCategory}
+                  {getLocalizedCategoryName(selectedCategory)}
                   <button type="button" onClick={() => setSelectedCategory('All')}><X size={12} /></button>
                 </span>
               )}
 
               {selectedBrand !== 'All' && (
                 <span className="filter-chip">
-                  Brand: {selectedBrand}
+                  {t('products.brand', {}, 'Brand')}: {selectedBrand}
                   <button type="button" onClick={() => setSelectedBrand('All')}><X size={12} /></button>
                 </span>
               )}
 
               {warrantyStatus !== 'all' && (
                 <span className="filter-chip">
-                  Warranty: {warrantyStatus === 'active' ? 'Active' : warrantyStatus === 'expiring_soon' ? 'Expiring Soon' : 'Expired'}
+                  {t('products.filterWarranty', {}, 'Warranty')}: {warrantyStatus === 'active' ? t('common.active', {}, 'Active') : warrantyStatus === 'expiring_soon' ? t('common.expiringSoon', {}, 'Expiring Soon') : t('common.expired', {}, 'Expired')}
                   <button type="button" onClick={() => setWarrantyStatus('all')}><X size={12} /></button>
                 </span>
               )}
 
               {returnStatus !== 'all' && (
                 <span className="filter-chip">
-                  Return: {returnStatus === 'active' ? 'Active' : 'Closed'}
+                  {t('products.filterReturn', {}, 'Return')}: {returnStatus === 'active' ? t('common.active', {}, 'Active') : t('common.expired', {}, 'Closed')}
                   <button type="button" onClick={() => setReturnStatus('all')}><X size={12} /></button>
                 </span>
               )}
 
               {maintenanceStatus !== 'all' && (
                 <span className="filter-chip">
-                  Maintenance: {maintenanceStatus === 'due' ? 'Due Soon' : maintenanceStatus === 'overdue' ? 'Overdue' : 'Up to date'}
+                  {t('products.filterMaintenance', {}, 'Maintenance')}: {maintenanceStatus === 'due' ? t('products.maintenanceDue', {}, 'Due Soon') : maintenanceStatus === 'overdue' ? t('products.maintenanceOverdue', {}, 'Overdue') : t('products.maintenanceUpToDate', {}, 'Up to date')}
                   <button type="button" onClick={() => setMaintenanceStatus('all')}><X size={12} /></button>
                 </span>
               )}
@@ -386,7 +393,7 @@ export default function ProductList() {
               onClick={handleResetFilters}
             >
               <RotateCcw size={13} />
-              {t('products.resetFilters') || 'Reset Filters'}
+              {t('products.resetFilters', {}, 'Reset Filters')}
             </button>
           </div>
         )}
@@ -396,37 +403,36 @@ export default function ProductList() {
       {!loading && (
         <div className="product-results-header">
           <span className="product-count-text">
-            {t('products.showingProducts', { count: products.length, plural: products.length === 1 ? '' : 's' }) ||
-              `Showing ${products.length} product${products.length === 1 ? '' : 's'}`}
+            {t('products.showingProducts', { count: products.length, plural: products.length === 1 ? '' : 's' }, `Showing ${products.length} product${products.length === 1 ? '' : 's'}`)}
           </span>
         </div>
       )}
 
       {/* Main Content Area: Loading / Error / Empty / Grid */}
       {loading && products.length === 0 ? (
-        <LoadingState message="Loading products..." description="Filtering MongoDB indexed vault records..." />
+        <LoadingState message={t('common.loading', {}, 'Loading products...')} description="Filtering MongoDB indexed vault records..." />
       ) : error ? (
         <ErrorState
-          title="Could not load products"
+          title={t('common.error', {}, 'Could not load products')}
           description={error}
           onRetry={fetchProducts}
         />
-      ) : products.length === 0 ? (
+      ) : localizedProducts.length === 0 ? (
         <EmptyState
           title={
             hasActiveFilters
-              ? (t('products.noFilteredProducts') || 'No products match your search or filters')
-              : (t('products.emptyTitle') || 'No products added yet')
+              ? t('products.noFilteredProducts', {}, 'No products match your search or filters')
+              : t('products.emptyTitle', {}, 'No products added yet')
           }
           description={
             hasActiveFilters
-              ? (t('products.noFilteredProductsDesc') || 'Try adjusting your search keywords, category selection, or clearing active filters.')
-              : (t('products.emptyDesc') || 'Get started by adding your first laptop, smartphone, or household appliance!')
+              ? t('products.noFilteredProductsDesc', {}, 'Try adjusting your search keywords, category selection, or clearing active filters.')
+              : t('products.emptyDesc', {}, 'Get started by adding your first laptop, smartphone, or household appliance!')
           }
           actionLabel={
             hasActiveFilters
-              ? (t('products.resetFilters') || 'Clear Filters')
-              : (t('products.addNewProduct') || 'Add First Product')
+              ? t('products.resetFilters', {}, 'Clear Filters')
+              : t('products.addNewProduct', {}, 'Add First Product')
           }
           onAction={() => {
             if (hasActiveFilters) {
@@ -438,8 +444,9 @@ export default function ProductList() {
         />
       ) : (
         <div className="product-grid">
-          {products.map((product) => {
+          {localizedProducts.map((product) => {
             const IconComponent = getCategoryIcon(product.category);
+            const categoryName = getLocalizedCategoryName(product.category);
             return (
               <Card
                 key={product.id}
@@ -454,7 +461,7 @@ export default function ProductList() {
                   <div className="product-card-top-badges">
                     <span className="product-brand-tag">{product.brand}</span>
                     <Badge variant="info" size="sm">
-                      {product.category}
+                      {categoryName}
                     </Badge>
                   </div>
                 </div>
@@ -464,7 +471,7 @@ export default function ProductList() {
                   {product.model && (
                     <div className="product-model-row">
                       <span className="product-model-chip">
-                        <Hash size={11} /> Model: {product.model}
+                        <Hash size={11} /> {t('products.model', {}, 'Model')}: {product.model}
                       </span>
                     </div>
                   )}
@@ -473,18 +480,18 @@ export default function ProductList() {
                 <div className="product-card-meta">
                   <div className="product-meta-item">
                     <Calendar size={13} />
-                    <span>Purchased: {product.purchaseDate}</span>
+                    <span>{t('products.purchaseDate', {}, 'Purchased')}: {product.purchaseDate}</span>
                   </div>
                   {product.seller && (
                     <div className="product-meta-item">
                       <Store size={13} />
-                      <span>Store: {product.seller}</span>
+                      <span>{t('products.seller', {}, 'Store')}: {product.seller}</span>
                     </div>
                   )}
                   {product.serialNumber && (
                     <div className="product-meta-item">
                       <Hash size={13} />
-                      <span>Serial: {product.serialNumber}</span>
+                      <span>{t('products.serialNumber', {}, 'Serial')}: {product.serialNumber}</span>
                     </div>
                   )}
                 </div>
@@ -502,14 +509,14 @@ export default function ProductList() {
                   <div className="product-card-actions" onClick={(e) => e.stopPropagation()}>
                     <button
                       className="card-icon-action-btn"
-                      title="Edit Product"
+                      title={t('common.edit', {}, 'Edit')}
                       onClick={(e) => handleOpenEdit(e, product)}
                     >
                       <Edit2 size={15} />
                     </button>
                     <button
                       className="card-icon-action-btn action-danger"
-                      title="Delete Product"
+                      title={t('common.delete', {}, 'Delete')}
                       disabled={deletingProductId === product.id}
                       onClick={(e) => handleDelete(e, product.id, product.name)}
                     >

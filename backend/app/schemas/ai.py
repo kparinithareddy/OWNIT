@@ -86,3 +86,12 @@ class AIConversationDetailResponse(BaseModel):
     conversation: AIConversationResponse
     messages: List[AIMessageResponse] = Field(default_factory=list)
 
+
+class SpeechToTextResponse(BaseModel):
+    success: bool = Field(..., description="Whether audio transcription succeeded")
+    transcript: str = Field(default="", description="Recognized speech text")
+    language: str = Field(default="en-IN", description="Language code used for recognition")
+    durationSeconds: Optional[float] = Field(default=None, description="Audio duration")
+    error: Optional[str] = Field(default=None, description="Error message if transcription failed")
+
+

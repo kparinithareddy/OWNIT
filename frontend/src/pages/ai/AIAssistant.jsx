@@ -26,6 +26,7 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import LoadingState from '../../components/common/LoadingState';
+import VoiceInputButton from '../../components/ai/VoiceInputButton';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { aiApi, productsApi } from '../../services/api';
 import './AIAssistant.css';
@@ -248,7 +249,16 @@ export default function AIAssistant() {
     }
   };
 
-  // 6. Action Button Handler
+  // 6. Voice Recognition Handler (Transcribes speech directly into editable input)
+  const handleSpeechRecognized = (speechText) => {
+    if (!speechText) return;
+    setInputMessage((prev) => {
+      const trimmed = (prev || '').trim();
+      return trimmed ? `${trimmed} ${speechText}` : speechText;
+    });
+  };
+
+  // 7. Action Button Handler
   const handleExecuteAction = (action) => {
     if (action.route) {
       navigate(action.route);
@@ -642,6 +652,11 @@ export default function AIAssistant() {
                   }}
                   disabled={loading}
                   className="ai-chat-input"
+                />
+                <VoiceInputButton
+                  onSpeechRecognized={handleSpeechRecognized}
+                  disabled={loading}
+                  size="md"
                 />
                 <Button
                   variant="primary"

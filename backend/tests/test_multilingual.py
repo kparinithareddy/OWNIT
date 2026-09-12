@@ -23,14 +23,15 @@ def test_user_preferences_validation():
         UserPreferencesUpdate(preferredLanguage="invalid_lang")
 
 
-def test_translation_vocabulary_lookup():
+@pytest.mark.anyio
+async def test_translation_vocabulary_lookup():
     # Test vocabulary translations
-    assert translation_service.translate_text("active", "hi") == "सक्रिय"
-    assert translation_service.translate_text("active", "te") == "యాక్టివ్"
-    assert translation_service.translate_text("active", "en") == "active"
+    assert await translation_service.translate_text("active", "hi") == "सक्रिय"
+    assert await translation_service.translate_text("active", "te") == "యాక్టివ్"
+    assert await translation_service.translate_text("active", "en") == "active"
 
-    assert translation_service.translate_text("confirmed_coverage", "hi") == "पुष्टि किया गया कवरेज"
-    assert translation_service.translate_text("confirmed_coverage", "te") == "నిర్ధారించబడిన కవరేజ్"
+    assert await translation_service.translate_text("confirmed_coverage", "hi") == "पुष्टि किया गया कवरेज"
+    assert await translation_service.translate_text("confirmed_coverage", "te") == "నిర్ధారించబడిన కవరేజ్"
 
 
 def test_technical_entity_protection():

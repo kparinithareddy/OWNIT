@@ -20,6 +20,7 @@ import {
 import Card from '../common/Card';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
+import VoiceInputButton from './VoiceInputButton';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { aiApi } from '../../services/api';
 import './ProductAIChatWidget.css';
@@ -142,6 +143,14 @@ export default function ProductAIChatWidget({ product, warranties = [], document
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSpeechRecognized = (speechText) => {
+    if (!speechText) return;
+    setInputMessage((prev) => {
+      const trimmed = (prev || '').trim();
+      return trimmed ? `${trimmed} ${speechText}` : speechText;
+    });
   };
 
   const handleClearHistory = async () => {
@@ -369,6 +378,11 @@ export default function ProductAIChatWidget({ product, warranties = [], document
           }}
           disabled={loading}
           className="product-ai-input"
+        />
+        <VoiceInputButton
+          onSpeechRecognized={handleSpeechRecognized}
+          disabled={loading}
+          size="md"
         />
         <Button
           variant="primary"

@@ -429,6 +429,21 @@ class AssistantService:
             gen_actions = self._generate_contextual_actions(context_type, product_data, portfolio_stats, ai_reply_text)
             actions = [a.model_dump() for a in gen_actions]
 
+            # Dynamic Localization Post-Processing:
+            # If user language is Hindi or Telugu, ensure AI text is in the requested language
+            if user_lang in ["hi", "te"]:
+                try:
+                    # Check if reply is predominantly ASCII / English
+                    has_target_script = bool(re.search(r"[\u0900-\u097F]" if user_lang == "hi" else r"[\u0C00-\u0C7F]", ai_reply_text))
+                    if not has_target_script:
+                        ai_reply_text = await translation_service.translate_text(
+                            text=ai_reply_text,
+                            target_lang=user_lang,
+                            source_lang="en"
+                        )
+                except Exception as t_err:
+                    logger.debug("AI reply translation post-process fallback: %s", t_err)
+
         else:
             # Deterministic offline fallback
             ai_reply_text, gen_actions = self._generate_offline_fallback(
@@ -441,6 +456,19 @@ class AssistantService:
             )
             model_used = "offline-fallback"
             duration_ms = 0.0
+
+            # Translate offline fallback if user preferred language is Hindi/Telugu
+            if user_lang in ["hi", "te"]:
+                try:
+                    has_target_script = bool(re.search(r"[\u0900-\u097F]" if user_lang == "hi" else r"[\u0C00-\u0C7F]", ai_reply_text))
+                    if not has_target_script:
+                        ai_reply_text = await translation_service.translate_text(
+                            text=ai_reply_text,
+                            target_lang=user_lang,
+                            source_lang="en"
+                        )
+                except Exception as t_err:
+                    logger.debug("Offline fallback translation error: %s", t_err)
 
             # Tailor cited sources for offline fallback to the relevant product if present
             if sources:

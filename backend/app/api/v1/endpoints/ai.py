@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, File, UploadFile, Form
 from typing import List, Optional
 from app.schemas.user import UserResponse
 from app.schemas.ai import (
@@ -10,7 +10,8 @@ from app.schemas.ai import (
     AIConversationListResponse,
     AIMessageSendRequest,
     AIMessageResponse,
-    AIConversationDetailResponse
+    AIConversationDetailResponse,
+    SpeechToTextResponse
 )
 from app.schemas.chat import (
     ChatSendRequest,
@@ -21,6 +22,7 @@ from app.api.dependencies import get_current_user
 from app.services.ai_service import ai_service
 from app.services.chat_service import chat_service
 from app.services.product_service import product_service
+from app.services.speech_service import speech_service
 from app.services.ai.assistant_service import assistant_service
 from app.services.ai.conversation_service import (
     conversation_service,
@@ -29,6 +31,7 @@ from app.services.ai.conversation_service import (
 )
 
 router = APIRouter()
+
 
 
 @router.get(
@@ -66,6 +69,32 @@ async def test_ai_prompt(
         system_prompt=data.systemPrompt,
         temperature=data.temperature or 0.7
     )
+
+
+@router.post(
+    "/speech-to-text",
+    response_model=SpeechToTextResponse,
+    summary="Transcribe recorded speech audio",
+    description="Receives a recorded WAV/audio file from the client and transcribes speech to text in the requested language (English, Hindi, or Telugu)."
+)
+async def transcribe_speech(
+    file: UploadFile = File(...),
+    language: Optional[str] = Form(default="en-IN"),
+    current_user: UserResponse = Depends(get_current_user)
+) -> SpeechToTextResponse:
+    """
+    Robust server-side Speech-to-Text handler.
+    Transcribes audio buffers without relying on browser WebSocket connections.
+    """
+    audio_bytes = await file.read()
+    success, transcript, err = speech_service.transcribe_wav_bytes(audio_bytes, language=language)
+    return SpeechToTextResponse(
+        success=success,
+        transcript=transcript,
+        language=speech_service.map_language_to_locale(language),
+        error=err
+    )
+
 
 
 # -------------------------------------------------------------
